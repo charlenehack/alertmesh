@@ -1,0 +1,38 @@
+services:
+  alertmesh:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ALERTMESH_DATABASE_DSN: postgres://alertmesh:alertmesh@postgres:5432/alertmesh?sslmode=disable
+      ALERTMESH_JWT_SECRET: dev-jwt-secret-must-be-at-least-32-chars
+      ALERTMESH_ENCRYPTION_KEY: ZGV2LWVuY3J5cHRpb24ta2V5LTMyLWJ5dGVz
+      ALERTMESH_LOG_LEVEL: debug
+      ALERTMESH_LOG_FORMAT: pretty
+      ALERTMESH_AI_WORKERS: "2"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: alertmesh
+      POSTGRES_PASSWORD: alertmesh
+      POSTGRES_DB: alertmesh
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../../migrations/000001_init.up.sql:/docker-entrypoint-initdb.d/001_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alertmesh"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

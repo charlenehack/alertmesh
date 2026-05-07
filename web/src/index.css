@@ -1,0 +1,49 @@
+/* Global reset + body shell + a tiny set of layout utility classes used
+ * by the shared <PageHeader /> / <SurfaceCard /> components. Almost every
+ * Ant Design dark-theme override that previously lived here as
+ * `.ant-* { ... !important }` has been moved into ConfigProvider's
+ * `theme.token` / `theme.components` map (see src/theme/antdTheme.ts).
+ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #0a0a0a;
+  color: #e8e8e8;
+}
+
+a {
+  cursor: pointer;
+}
+
+/* Page header — used by <PageHeader /> */
+.am-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+/* Striped table rows used in IncidentList (kept here so the className
+ * stays valid; rule itself is intentionally minimal). */
+.ant-table-row-striped > td {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* Custom scrollbar — Webkit only; Firefox uses the default. */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 2px;
+}

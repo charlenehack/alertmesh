@@ -1,0 +1,714 @@
+package ai
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/rs/zerolog/log"
+	"github.com/tmc/langchaingo/agents"
+	"github.com/tmc/langchaingo/callbacks"
+	"github.com/tmc/langchaingo/llms/openai"
+	"gorm.io/gorm"
+
+	aitools "github.com/kuzane/alertmesh/internal/ai/tools"
+	"github.com/kuzane/alertmesh/internal/config"
+	"github.com/kuzane/alertmesh/internal/model"
+)
+
+// Process-level fallbacks for the per-provider chat-context caps.  These
+// kick in whenever model.LLMProvider.ChatReportMaxChars / ChatHistoryMaxTurns
+// are 0 (legacy rows seeded before migration 33, or rows that the operator
+// explicitly left blank in the UI to mean "use the system default").
+//
+// Both are character (rune-byte) caps applied AFTER tool reasoning — they
+// only bound what we *re-feed* into the chat agent on follow-up turns;
+// live tool output during analysis is never truncated.
+const (
+	defaultChatReportMaxChars  = 8000 // ~2k tokens (CN) / ~2k tokens (EN)
+	defaultChatHistoryMaxTurns = 10   // last N user/assistant pairs
+)
+
+// resolveChatLimits picks the effective values for the two chat-context caps,
+// preferring per-provider settings over the process-level fallbacks.
+// A negative or zero value in the DB row means "use the default".
+func resolveChatLimits(p model.LLMProvider) (reportMax, historyMax int) {
+	reportMax = p.ChatReportMaxChars
+	if reportMax <= 0 {
+		reportMax = defaultChatReportMaxChars
+	}
+	historyMax = p.ChatHistoryMaxTurns
+	if historyMax <= 0 {
+		historyMax = defaultChatHistoryMaxTurns
+	}
+	return reportMax, historyMax
+}
+
+// resolveLanguage normalises the provider language to one of "zh" / "en" /
+// "auto", falling back to "zh" for unknown / blank values so the prompt
+// builders never have to handle a fourth case.
+func resolveLanguage(p model.LLMProvider) string {
+	switch strings.ToLower(strings.TrimSpace(p.Language)) {
+	case "en":
+		return "en"
+	case "auto":
+		return "auto"
+	default:
+		return "zh"
+	}
+}
+
+// Agent wraps a langchaingo ReAct agent with the configured tools and LLM provider.
+type Agent struct {
+	db  *gorm.DB
+	cfg *config.Config
+}
+
+func NewAgent(db *gorm.DB, cfg *config.Config) *Agent {
+	return &Agent{db: db, cfg: cfg}
+}
+
+// Analyze runs the ReAct loop for the given incident and returns a Markdown report.
+func (a *Agent) Analyze(ctx context.Context, incidentID string, cb callbacks.Handler) (string, error) {
+	var inc model.Incident
+	if err := a.db.WithContext(ctx).Preload("Alerts").First(&inc, "id = ?", incidentID).Error; err != nil {
+		return "", fmt.Errorf("load incident: %w", err)
+	}
+
+	var provider model.LLMProvider
+	if err := a.db.WithContext(ctx).Where("is_default = ? AND is_enabled = ?", true, true).First(&provider).Error; err != nil {
+		return "", fmt.Errorf("no default LLM provider configured: %w", err)
+	}
+
+	apiKey, err := a.decryptAPIKey(provider.APIKey)
+	if err != nil {
+		return "", fmt.Errorf("decrypt LLM API key: %w", err)
+	}
+
+	llmOpts := []openai.Option{
+		openai.WithToken(apiKey),
+		openai.WithModel(provider.ModelName),
+	}
+	if provider.BaseURL != "" {
+		llmOpts = append(llmOpts, openai.WithBaseURL(provider.BaseURL))
+	}
+	if cb != nil {
+		llmOpts = append(llmOpts, openai.WithCallback(cb))
+	}
+
+	llm, err := openai.New(llmOpts...)
+	if err != nil {
+		return "", fmt.Errorf("create LLM client: %w", err)
+	}
+
+	agentTools := aitools.AsLangchainTools(aitools.ToolConfig{
+		PrometheusURL: a.cfg.PrometheusURL,
+		OpenSearchURL: a.cfg.OpenSearchURL,
+	})
+
+	// langchaingo marks Initialize "deprecated" but the only suggested
+	// replacement (NewExecutor) lacks the higher-level option helpers we
+	// rely on here; keeping Initialize keeps the call site terse.
+	agent, err := agents.Initialize( //nolint:staticcheck // langchaingo deprecation, see comment above
+		llm,
+		agentTools,
+		agents.ZeroShotReactDescription,
+		agents.WithMaxIterations(10),
+	)
+	if err != nil {
+		return "", fmt.Errorf("initialize agent: %w", err)
+	}
+
+	language := resolveLanguage(provider)
+	prompt := buildAnalysisPrompt(inc, language)
+
+	log.Info().
+		Str("incident_id", incidentID).
+		Str("provider", provider.Provider).
+		Str("model", provider.ModelName).
+		Str("language", language).
+		Msg("starting AI analysis")
+
+	result, err := agent.Call(ctx, map[string]any{
+		"input": prompt,
+	})
+	if err != nil {
+		return "", fmt.Errorf("agent execution: %w", err)
+	}
+
+	output, ok := result["output"].(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected agent output type")
+	}
+
+	return output, nil
+}
+
+// Chat handles a follow-up conversation turn for an incident.
+//
+// Unlike the old version, this preloads the full conversational context so
+// the agent can give a meaningful answer even when the user's question is
+// terse (e.g. "中文输出" / "再详细点" / "上一条 metric 怎么查的"):
+//
+//   - the incident itself (title / severity / first few alert labels)
+//   - the most recent root-cause report from ai_analyses (if any)
+//   - the recent ai_conversations turns
+//
+// Without these, the conversational agent only sees the bare question and
+// degrades into "what do you need help with?" replies.
+func (a *Agent) Chat(ctx context.Context, incidentID, question string, history []model.AIConversation, cb callbacks.Handler) (string, error) {
+	var inc model.Incident
+	if err := a.db.WithContext(ctx).Preload("Alerts").First(&inc, "id = ?", incidentID).Error; err != nil {
+		return "", fmt.Errorf("load incident: %w", err)
+	}
+
+	// Latest analysis is the canonical "what we already concluded" anchor.
+	// A miss is fine — the chat can still run, the prompt builder will
+	// switch to a "no prior report" template.
+	var analysis model.AIAnalysis
+	if err := a.db.WithContext(ctx).
+		Where("incident_id = ?", incidentID).
+		Order("created_at DESC").
+		First(&analysis).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", fmt.Errorf("load latest AI analysis: %w", err)
+	}
+
+	var provider model.LLMProvider
+	if err := a.db.WithContext(ctx).Where("is_default = ? AND is_enabled = ?", true, true).First(&provider).Error; err != nil {
+		return "", fmt.Errorf("no default LLM provider configured: %w", err)
+	}
+
+	apiKey, err := a.decryptAPIKey(provider.APIKey)
+	if err != nil {
+		return "", fmt.Errorf("decrypt LLM API key: %w", err)
+	}
+
+	llmOpts := []openai.Option{
+		openai.WithToken(apiKey),
+		openai.WithModel(provider.ModelName),
+	}
+	if provider.BaseURL != "" {
+		llmOpts = append(llmOpts, openai.WithBaseURL(provider.BaseURL))
+	}
+	if cb != nil {
+		llmOpts = append(llmOpts, openai.WithCallback(cb))
+	}
+
+	llm, err := openai.New(llmOpts...)
+	if err != nil {
+		return "", fmt.Errorf("create LLM client: %w", err)
+	}
+
+	agentTools := aitools.AsLangchainTools(aitools.ToolConfig{
+		PrometheusURL: a.cfg.PrometheusURL,
+		OpenSearchURL: a.cfg.OpenSearchURL,
+	})
+
+	agent, err := agents.Initialize( //nolint:staticcheck // langchaingo deprecation, see ZeroShot path comment
+		llm,
+		agentTools,
+		agents.ConversationalReactDescription,
+		agents.WithMaxIterations(8),
+	)
+	if err != nil {
+		return "", fmt.Errorf("initialize conversational agent: %w", err)
+	}
+
+	reportMax, historyMax := resolveChatLimits(provider)
+	language := resolveLanguage(provider)
+	prompt := buildChatPrompt(inc, analysis.Report, history, question, reportMax, historyMax, language)
+
+	log.Debug().
+		Str("incident_id", incidentID).
+		Bool("has_prior_report", analysis.Report != "").
+		Int("history_turns", len(history)).
+		Int("prompt_chars", len(prompt)).
+		Int("report_max_chars", reportMax).
+		Int("history_max_turns", historyMax).
+		Str("language", language).
+		Msg("AI chat prompt built")
+
+	result, err := agent.Call(ctx, map[string]any{
+		"input": prompt,
+	})
+	if err != nil {
+		return "", fmt.Errorf("agent chat: %w", err)
+	}
+
+	output, ok := result["output"].(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected agent output type")
+	}
+
+	return output, nil
+}
+
+// decryptAPIKey returns (key, nil) today: a decrypt failure means the
+// row was stored in plaintext (development), in which case we return
+// the input verbatim.  The error return is kept for forward-compat so
+// future strict modes can refuse plaintext fallbacks without a signature
+// change at every call site.
+func (a *Agent) decryptAPIKey(encrypted string) (string, error) { //nolint:unparam // see comment above
+	if a.cfg.EncryptionKey == "" {
+		return encrypted, nil
+	}
+	decrypted, err := config.Decrypt(encrypted, a.cfg.EncryptionKey)
+	if err != nil {
+		// If decryption fails, it might be stored in plaintext (e.g. during development)
+		return encrypted, nil //nolint:nilerr
+	}
+	return decrypted, nil
+}
+
+// maxAlertDetailsRunes caps the Alert Details section in the analysis prompt
+// so very large Kafka groups stay within a reasonable context window.
+const maxAlertDetailsRunes = 45000
+
+// buildAlertDetailsBlock renders the data-only block that's identical
+// across all output languages.  Field labels stay English (`source=`,
+// `status=`, `labels=`) so the model gets a stable, machine-friendly
+// snapshot regardless of UI language.
+//
+// Alerts are ordered by StartsAt and included until maxAlertDetailsRunes
+// runes are reached (summary + description when present).
+func buildAlertDetailsBlock(inc model.Incident) string {
+	alerts := append([]model.Alert(nil), inc.Alerts...)
+	sort.Slice(alerts, func(i, j int) bool {
+		return alerts[i].StartsAt.Before(alerts[j].StartsAt)
+	})
+	if len(alerts) == 0 {
+		return "\n(no alerts attached)"
+	}
+
+	var b strings.Builder
+	total := 0
+	for i, alert := range alerts {
+		var labels map[string]string
+		_ = json.Unmarshal(alert.Labels, &labels)
+		var annotations map[string]string
+		_ = json.Unmarshal(alert.Annotations, &annotations)
+
+		var chunk strings.Builder
+		fmt.Fprintf(&chunk,
+			"\n- Alert %d: source=%s fingerprint=%s status=%s starts_at=%s labels=%v",
+			i+1, alert.Source, alert.Fingerprint, alert.Status, alert.StartsAt.UTC().Format(time.RFC3339), labels,
+		)
+		if sum := annotations["summary"]; sum != "" {
+			fmt.Fprintf(&chunk, "\n  Summary: %s", sum)
+		}
+		if desc := annotations["description"]; desc != "" {
+			fmt.Fprintf(&chunk, "\n  Description: %s", desc)
+		}
+
+		s := chunk.String()
+		rs := []rune(s)
+		n := len(rs)
+		if total+n > maxAlertDetailsRunes {
+			if remain := maxAlertDetailsRunes - total; remain > 0 {
+				b.WriteString(string(rs[:remain]))
+			}
+			fmt.Fprintf(&b, "\n... (truncated: %d alerts total, cap %d runes)", len(alerts), maxAlertDetailsRunes)
+			break
+		}
+		b.WriteString(s)
+		total += n
+	}
+	return b.String()
+}
+
+// analysisTimeAnchorBlock gives the model explicit UTC timestamps so it can
+// size Prometheus ranges and pick a large enough logs_search time_range.
+// logs_search still filters @timestamp to [now−time_range, now] at query time,
+// so the hint stresses choosing a duration that still covers the incident.
+func analysisTimeAnchorBlock(inc model.Incident) string {
+	opened := inc.OpenedAt.UTC().Format(time.RFC3339)
+	if len(inc.Alerts) == 0 {
+		return fmt.Sprintf(`## Time anchor (UTC) — use for metrics_query / logs_search windowing
+- **Incident opened_at:** %s
+- **Attached alerts:** none
+
+**Important:** `+"`logs_search`"+` filters `+"`@timestamp`"+` to [**now − time_range**, **now**]. Pick `+"`time_range`"+` large enough that this incident still falls inside that wall-clock window.`,
+			opened)
+	}
+	minT := inc.Alerts[0].StartsAt
+	maxT := inc.Alerts[0].StartsAt
+	for _, a := range inc.Alerts[1:] {
+		if a.StartsAt.Before(minT) {
+			minT = a.StartsAt
+		}
+		if a.StartsAt.After(maxT) {
+			maxT = a.StartsAt
+		}
+	}
+	minS := minT.UTC().Format(time.RFC3339)
+	maxS := maxT.UTC().Format(time.RFC3339)
+	return fmt.Sprintf(`## Time anchor (UTC) — use for metrics_query / logs_search windowing
+- **Incident opened_at:** %s
+- **Alert starts_at range (min … max):** %s … %s
+
+**Important:** `+"`logs_search`"+` filters `+"`@timestamp`"+` to [**now − time_range**, **now**]. Choose `+"`time_range`"+` at least long enough to cover **now − min(incident times above)** with margin (e.g. if the earliest signal was 2h ago, prefer `+"`3h`"+` or `+"`6h`"+` over `+"`30m`"+`). For **metrics_query**, prefer range vectors or subqueries overlapping this window.`,
+		opened, minS, maxS)
+}
+
+// buildAnalysisPrompt produces the system prompt fed to the ZeroShotReact
+// agent that generates the root-cause report.
+//
+// `language` is one of "zh" / "en" / "auto" (resolveLanguage normalises any
+// other value to "zh"):
+//
+//   - zh: 中文 prompt + 中文 section headings + 强制中文输出
+//   - en: English prompt + English section headings + "Reply in English"
+//   - auto: English skeleton + "Reply in the same language as the incident
+//     text and alert annotations" (so a Chinese-labelled incident gets a
+//     Chinese report and an English one gets an English report)
+//
+// IMPORTANT: ZeroShotReactDescription parses the model's output looking for
+// the literal English keywords `Thought:` / `Action:` / `Action Input:` /
+// `Observation:` / `Final Answer:`.  Those MUST stay English regardless of
+// the chosen language, which is why each branch repeats the same warning.
+func buildAnalysisPrompt(inc model.Incident, language string) string {
+	alertDetails := buildAlertDetailsBlock(inc)
+	timeAnchor := analysisTimeAnchorBlock(inc)
+
+	switch language {
+	case "en":
+		return fmt.Sprintf(`You are a senior SRE performing root cause analysis on a production incident.
+
+## Incident Details
+- **Title:** %s
+- **Severity:** %s
+- **Status:** %s
+- **Alert Source:** %s
+- **Alert Count:** %d
+
+%s
+
+## Alert Details
+%s
+
+## Investigation Order (call the tools in this order)
+1. **metrics_query** — PromQL for resources (CPU/mem/disk/net), error rate, latency percentiles, saturation.
+2. **logs_search** — application logs in OpenSearch around the incident window (ERROR / Exception / Stack trace).
+3. **system_info** — host-level logs (kernel / disk / network / OOM / systemd service) for the affected hosts.
+4. **changes_query** — recent deployments / config changes correlated with the incident time.
+5. **runbook_search** — existing runbooks / SOPs that suggest remediation.
+
+## Output Requirements (strict)
+- Keep the ReAct keywords (`+"`Thought` / `Action` / `Action Input` / `Observation` / `Final Answer`"+`) in **English** — they are protocol tokens.
+- The content after `+"`Final Answer`"+` MUST be written in **English**.
+- Keep service names / metric names / paths / commands / exception class names in their original form (do not translate).
+- Output as Markdown, with EXACTLY these section headings:
+
+  ### Root Cause Analysis
+  Causal chain from trigger to user-visible symptom.
+
+  ### Evidence
+  Key metric values (with timestamps and units) and representative log lines that justify the conclusion.
+
+  ### Impact Assessment
+  Services / hosts / users affected and the business impact.
+
+  ### Remediation Steps
+  Immediate, executable actions (commands / steps) to recover.
+
+  ### Prevention
+  Long-term fixes to prevent recurrence.
+
+Be concise but thorough; favour actionable findings over generalities.`,
+			inc.Title, inc.Severity, inc.Status, inc.Source, len(inc.Alerts), timeAnchor, alertDetails)
+
+	case "auto":
+		return fmt.Sprintf(`You are a senior SRE performing root cause analysis on a production incident.
+
+## Incident Details
+- **Title:** %s
+- **Severity:** %s
+- **Status:** %s
+- **Alert Source:** %s
+- **Alert Count:** %d
+
+%s
+
+## Alert Details
+%s
+
+## Investigation Order
+1. metrics_query  2. logs_search  3. system_info  4. changes_query  5. runbook_search
+
+## Output Requirements (strict)
+- Keep the ReAct keywords (`+"`Thought` / `Action` / `Action Input` / `Observation` / `Final Answer`"+`) in **English** — they are protocol tokens.
+- For the content after `+"`Final Answer`"+`: **reply in the same language used in the incident title / alert labels / annotations above.**  If those texts are Chinese, reply in 简体中文; if English, reply in English; if mixed, follow the language of the incident title.
+- Keep service names / metric names / paths / commands / exception class names in their original form.
+- Output as Markdown with five sections:
+  Root Cause Analysis / Evidence / Impact Assessment / Remediation Steps / Prevention
+  (use the localised heading appropriate to the chosen language).
+
+Be concise but thorough; favour actionable findings.`,
+			inc.Title, inc.Severity, inc.Status, inc.Source, len(inc.Alerts), timeAnchor, alertDetails)
+	}
+
+	// "zh" (default).  ZeroShotReactDescription requires English keywords
+	// ("Thought:" / "Action:" / "Observation:" / "Final Answer:") — those
+	// MUST stay English or langchaingo's parser breaks.  We only constrain
+	// the *Final Answer* content to Chinese.
+	return fmt.Sprintf(`你是一名资深 SRE，正在为一起线上故障执行根因分析。
+
+## 故障详情
+- **标题：** %s
+- **严重等级：** %s
+- **状态：** %s
+- **告警来源：** %s
+- **告警数量：** %d
+
+%s
+
+## 告警明细
+%s
+
+## 调查指引（按顺序使用工具）
+1. **metrics_query** — 通过 PromQL 查询资源指标（CPU、内存、磁盘、网络）、错误率、延迟分位数、饱和度信号。
+2. **logs_search** — 在 OpenSearch 检索故障时间窗口内的应用日志，关注 ERROR / Exception / Stack trace。
+3. **system_info** — 查看受影响主机的系统级日志（kernel、disk、network、OOM、systemd service）。
+4. **changes_query** — 检索发布 / 配置变更，判断是否与故障时间相关。
+5. **runbook_search** — 查找已有 runbook / SOP，给出处置建议。
+
+## 输出要求（强制）
+- 工具调用时的 `+"`Thought` / `Action` / `Action Input` / `Observation`"+` 关键字保持英文（这是 ReAct 协议的一部分）。
+- `+"`Final Answer`"+` 之后的报告内容**必须使用简体中文**。
+- 技术术语 / 服务名 / metric 名 / 路径 / 命令 / 异常类名保留原文，方便直接复制使用。
+- 报告以 Markdown 输出，必须包含以下章节，**严格使用以下中文标题**：
+
+  ### 根因分析
+  描述从触发因素到症状的完整因果链。
+
+  ### 证据
+  关键指标值（带时间戳与单位）与代表性的日志片段，每条要能复现本次结论。
+
+  ### 影响评估
+  受影响的服务 / 主机 / 用户范围与业务后果。
+
+  ### 应急处置
+  当前可立即执行的修复动作（命令 / 操作步骤）。
+
+  ### 长期改进
+  防止同类问题复发的根治措施。
+
+请保持简洁但充分，避免空话，结论要落到具体动作上。`,
+		inc.Title, inc.Severity, inc.Status, inc.Source, len(inc.Alerts), timeAnchor, alertDetails)
+}
+
+// buildChatPrompt assembles the system context fed into the conversational
+// agent for a follow-up turn.
+//
+// Caller-supplied knobs (all per-LLM-provider, see resolveChatLimits /
+// resolveLanguage):
+//
+//   - reportMax  – cap on prior-report chars re-fed into the chat
+//   - historyMax – cap on prior conversation pairs re-fed
+//   - language   – "zh" / "en" / "auto"; controls the persona + section
+//     copy. ReAct keywords stay English in every branch.
+//
+// Layout (every branch):
+//
+//  1. Persona + language directive
+//  2. Incident snapshot (so the model knows *which* outage)
+//  3. Prior root-cause report (capped + truncated)
+//  4. Recent conversation turns (capped)
+//  5. The current question
+func buildChatPrompt(
+	inc model.Incident,
+	analysisReport string,
+	history []model.AIConversation,
+	question string,
+	reportMax, historyMax int,
+	language string,
+) string {
+	if reportMax <= 0 {
+		reportMax = defaultChatReportMaxChars
+	}
+	if historyMax <= 0 {
+		historyMax = defaultChatHistoryMaxTurns
+	}
+
+	// 1) language-neutral alert snapshot – field labels stay English so
+	//    the data shape is stable across UIs.
+	var alertSummary strings.Builder
+	for i, alert := range inc.Alerts {
+		if i >= 3 {
+			fmt.Fprintf(&alertSummary, "\n  - … +%d more alerts", len(inc.Alerts)-3)
+			break
+		}
+		var labels map[string]string
+		_ = json.Unmarshal(alert.Labels, &labels)
+		fmt.Fprintf(&alertSummary,
+			"\n  - source=%s status=%s labels=%v",
+			alert.Source, alert.Status, labels,
+		)
+	}
+
+	// 2) recent chat turns – drop everything except the last N exchanges.
+	//    We exclude the *current* question since the agent's input field
+	//    already carries it; including it twice tempts the model to echo.
+	turns := history
+	if maxTurns := historyMax * 2; len(turns) > maxTurns {
+		turns = turns[len(turns)-maxTurns:]
+	}
+	roleAI, roleUser, historyHeader := chatRoleLabels(language)
+	var historyBlock strings.Builder
+	for _, msg := range turns {
+		if msg.Role == "user" && strings.TrimSpace(msg.Content) == strings.TrimSpace(question) {
+			continue
+		}
+		role := msg.Role
+		switch role {
+		case "assistant":
+			role = roleAI
+		case "user":
+			role = roleUser
+		}
+		fmt.Fprintf(&historyBlock, "- %s: %s\n", role, msg.Content)
+	}
+	var historyText string
+	if historyBlock.Len() > 0 {
+		historyText = historyHeader + historyBlock.String() + "\n"
+	}
+
+	// 3) prior analysis report – the single most important block; without
+	//    it the model regresses to generic "what do you need" replies.
+	reportBlock := chatReportBlock(analysisReport, reportMax, language)
+
+	// 4) full prompt – branch on language for persona / labels / question
+	//    header.  ReAct keywords stay English in every branch.
+	switch language {
+	case "en":
+		return fmt.Sprintf(`You are a senior SRE in a follow-up chat about a production incident.
+**Always reply in English** (keep service names / metric names / paths / commands / exception class names in their original form).
+Style: direct, evidence-based, actionable.  Call tools when you need more data, but do NOT paste back the entire prior report.
+
+Note: keep the ReAct keywords (`+"`Thought` / `Action` / `Action Input` / `Observation`"+`) in English — they are protocol tokens.  Only the content after `+"`Final Answer`"+` is the user-facing reply.
+
+## Incident
+- title: %s
+- severity: %s
+- status: %s
+- alert count: %d
+- alert summary: %s
+
+%s%s## Current question
+%s
+
+Answer based on the context above.`,
+			inc.Title, inc.Severity, inc.Status, len(inc.Alerts), alertSummary.String(),
+			reportBlock, historyText, question)
+
+	case "auto":
+		return fmt.Sprintf(`You are a senior SRE in a follow-up chat about a production incident.
+**Reply in the same language the user used in the current question**, or in the language of the prior report if the question is too short to detect.  Keep service names / metric names / paths / commands / exception class names in their original form.
+Style: direct, evidence-based, actionable.  Call tools for new evidence, do NOT re-paste the entire prior report.
+
+Note: keep the ReAct keywords (`+"`Thought` / `Action` / `Action Input` / `Observation`"+`) in English — they are protocol tokens.  Only the content after `+"`Final Answer`"+` is the user-facing reply.
+
+## Incident
+- title: %s
+- severity: %s
+- status: %s
+- alert count: %d
+- alert summary: %s
+
+%s%s## Current question
+%s
+
+Answer based on the context above.`,
+			inc.Title, inc.Severity, inc.Status, len(inc.Alerts), alertSummary.String(),
+			reportBlock, historyText, question)
+	}
+
+	// "zh" (default)
+	return fmt.Sprintf(`你是一名资深 SRE，正在与运维同事就一起线上故障进行追问对话。
+**请始终使用简体中文回答**（技术术语 / 服务名 / metric 名 / 路径 / 命令 / 异常类名保留原文）。
+回答风格：直接、有依据、可落地，不要客套。需要进一步证据时主动调用工具，但不要重复贴一遍上一轮的整份报告。
+
+注意：工具调用阶段的 `+"`Thought` / `Action` / `Action Input` / `Observation`"+` 关键字必须保持英文（ReAct 协议要求），仅 `+"`Final Answer`"+` 之后的内容用中文。
+
+## 故障基本信息
+- 标题：%s
+- 严重等级：%s
+- 状态：%s
+- 告警数量：%d
+- 告警摘要：%s
+
+%s%s## 当前追问
+%s
+
+请基于上述上下文回答。`,
+		inc.Title, inc.Severity, inc.Status, len(inc.Alerts), alertSummary.String(),
+		reportBlock, historyText, question)
+}
+
+// chatReportBlock formats the prior root-cause report block for the chat
+// prompt, applying the per-provider char cap and emitting a localized
+// heading + truncation note.
+func chatReportBlock(report string, maxLen int, language string) string {
+	switch language {
+	case "en":
+		switch {
+		case report == "":
+			return "(No prior AI root-cause report available — please investigate via tools and answer.)\n"
+		case len(report) > maxLen:
+			return fmt.Sprintf(
+				"## Prior AI root-cause report (truncated; do NOT paste it back wholesale)\n\n%s\n…(report truncated; query tools for more detail if needed)\n",
+				report[:maxLen],
+			)
+		default:
+			return fmt.Sprintf(
+				"## Prior AI root-cause report (do NOT paste it back wholesale)\n\n%s\n",
+				report,
+			)
+		}
+	case "auto":
+		switch {
+		case report == "":
+			return "(No prior AI root-cause report available — investigate via tools and answer.)\n"
+		case len(report) > maxLen:
+			return fmt.Sprintf(
+				"## Prior AI root-cause report (truncated)\n\n%s\n…(truncated)\n",
+				report[:maxLen],
+			)
+		default:
+			return fmt.Sprintf("## Prior AI root-cause report\n\n%s\n", report)
+		}
+	}
+	// "zh"
+	switch {
+	case report == "":
+		return "（尚未生成 AI 根因分析报告 —— 请先用工具自行调查再回答。）\n"
+	case len(report) > maxLen:
+		return fmt.Sprintf(
+			"## 上一轮 AI 根因分析报告（已截断，请基于此回答追问，不要重复整篇报告）\n\n%s\n…（报告过长，已截断，必要时请用工具补充查询）\n",
+			report[:maxLen],
+		)
+	default:
+		return fmt.Sprintf(
+			"## 上一轮 AI 根因分析报告（请基于此回答追问，不要重复整篇报告）\n\n%s\n",
+			report,
+		)
+	}
+}
+
+// chatRoleLabels returns the localized role labels and section header used
+// when re-feeding prior conversation turns into a follow-up chat prompt.
+// roleAI is currently always "AI" but we keep the named return so future
+// localizations (e.g. "助手") only need to touch this file, not callers.
+func chatRoleLabels(language string) (roleAI, roleUser, header string) { //nolint:unparam // see comment above
+	switch language {
+	case "en":
+		return "AI", "User", "## Prior chat turns\n"
+	case "auto":
+		return "AI", "User", "## Prior chat turns\n"
+	}
+	return "AI", "运维", "## 之前的追问对话\n"
+}

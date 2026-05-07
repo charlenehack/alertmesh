@@ -1,0 +1,49 @@
+# Binaries
+/alertmesh
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build output
+/bin/
+/dist/
+.DS_Store
+.cursor/
+
+# Test binary
+*.test
+
+# Coverage
+*.out
+coverage.html
+
+# Go workspace
+go.work
+go.work.sum
+
+# Environment
+.env
+
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vendor (if not committing)
+# vendor/
+
+# Temporary
+tmp/
+
+# Frontend
+web/node_modules/
+web/dist/
