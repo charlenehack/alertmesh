@@ -90,7 +90,7 @@ curl http://localhost:8080/healthz
 | 依赖 | 最低版本 |
 |------|----------|
 | Go | 1.22+ |
-| Node.js | 18+ |
+| Node.js | 20.19+ 或 22.12+ |
 
 ```bash
 git clone <repo-url> alertmesh && cd alertmesh
