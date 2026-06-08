@@ -105,28 +105,28 @@ func (h *alertCenterHandler) encryptField(val string) string {
 func (h *alertCenterHandler) registerRoutes(ws *restful.WebService) {
 	// ── Alert Routes ──────────────────────────────────────────────────────────
 	ws.Route(ws.GET("/alert/routes").To(h.listRoutes).Doc("List alert routes").
-		Metadata(label.MetaIdentity, label.AlertRouteList).
+		Metadata(label.MetaIdentity, label.AlertRouteAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "AlertRoute").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/alert/routes").To(h.createRoute).Doc("Create alert route").
-		Metadata(label.MetaIdentity, label.AlertRouteCreate).
+		Metadata(label.MetaIdentity, label.AlertRouteAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "AlertRoute").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.PUT("/alert/routes/{id}").To(h.updateRoute).Doc("Update alert route").
-		Metadata(label.MetaIdentity, label.AlertRouteUpdate).
+		Metadata(label.MetaIdentity, label.AlertRouteAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "AlertRoute").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/alert/routes/{id}").To(h.deleteRoute).Doc("Delete alert route").
-		Metadata(label.MetaIdentity, label.AlertRouteDelete).
+		Metadata(label.MetaIdentity, label.AlertRouteAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "AlertRoute").
 		Metadata(label.MetaAuth, label.Enable).
@@ -134,28 +134,28 @@ func (h *alertCenterHandler) registerRoutes(ws *restful.WebService) {
 
 	// ── Notification Templates ────────────────────────────────────────────────
 	ws.Route(ws.GET("/alert/templates").To(h.listTemplates).Doc("List notification templates").
-		Metadata(label.MetaIdentity, label.TemplateList).
+		Metadata(label.MetaIdentity, label.TemplateAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Template").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/alert/templates").To(h.createTemplate).Doc("Create notification template").
-		Metadata(label.MetaIdentity, label.TemplateCreate).
+		Metadata(label.MetaIdentity, label.TemplateAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Template").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.PUT("/alert/templates/{id}").To(h.updateTemplate).Doc("Update notification template").
-		Metadata(label.MetaIdentity, label.TemplateUpdate).
+		Metadata(label.MetaIdentity, label.TemplateAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Template").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/alert/templates/{id}").To(h.deleteTemplate).Doc("Delete notification template").
-		Metadata(label.MetaIdentity, label.TemplateDelete).
+		Metadata(label.MetaIdentity, label.TemplateAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Template").
 		Metadata(label.MetaAuth, label.Enable).
@@ -163,28 +163,28 @@ func (h *alertCenterHandler) registerRoutes(ws *restful.WebService) {
 
 	// ── Aggregation Policies ──────────────────────────────────────────────────
 	ws.Route(ws.GET("/alert/aggregations").To(h.listAggregations).Doc("List aggregation policies").
-		Metadata(label.MetaIdentity, label.AggregationList).
+		Metadata(label.MetaIdentity, label.AggregationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Aggregation").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/alert/aggregations").To(h.createAggregation).Doc("Create aggregation policy").
-		Metadata(label.MetaIdentity, label.AggregationCreate).
+		Metadata(label.MetaIdentity, label.AggregationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Aggregation").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.PUT("/alert/aggregations/{id}").To(h.updateAggregation).Doc("Update aggregation policy").
-		Metadata(label.MetaIdentity, label.AggregationUpdate).
+		Metadata(label.MetaIdentity, label.AggregationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Aggregation").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/alert/aggregations/{id}").To(h.deleteAggregation).Doc("Delete aggregation policy").
-		Metadata(label.MetaIdentity, label.AggregationDelete).
+		Metadata(label.MetaIdentity, label.AggregationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Aggregation").
 		Metadata(label.MetaAuth, label.Enable).
@@ -192,21 +192,21 @@ func (h *alertCenterHandler) registerRoutes(ws *restful.WebService) {
 
 	// ── Silence Policies ──────────────────────────────────────────────────────
 	ws.Route(ws.GET("/alert/silences").To(h.listSilences).Doc("List silence policies").
-		Metadata(label.MetaIdentity, label.SilenceList).
+		Metadata(label.MetaIdentity, label.SilenceAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Silence").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/alert/silences").To(h.createSilence).Doc("Create silence policy").
-		Metadata(label.MetaIdentity, label.SilenceCreate).
+		Metadata(label.MetaIdentity, label.SilenceAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Silence").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/alert/silences/{id}").To(h.deleteSilence).Doc("Delete silence policy").
-		Metadata(label.MetaIdentity, label.SilenceDelete).
+		Metadata(label.MetaIdentity, label.SilenceAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Silence").
 		Metadata(label.MetaAuth, label.Enable).
@@ -214,28 +214,28 @@ func (h *alertCenterHandler) registerRoutes(ws *restful.WebService) {
 
 	// ── Notification Policies ─────────────────────────────────────────────────
 	ws.Route(ws.GET("/alert/policies").To(h.listPolicies).Doc("List notification policies").
-		Metadata(label.MetaIdentity, label.PolicyList).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Policy").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/alert/policies").To(h.createPolicy).Doc("Create notification policy").
-		Metadata(label.MetaIdentity, label.PolicyCreate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Policy").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.PUT("/alert/policies/{id}").To(h.updatePolicy).Doc("Update notification policy").
-		Metadata(label.MetaIdentity, label.PolicyUpdate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Policy").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/alert/policies/{id}").To(h.deletePolicy).Doc("Delete notification policy").
-		Metadata(label.MetaIdentity, label.PolicyDelete).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Policy").
 		Metadata(label.MetaAuth, label.Enable).
@@ -243,28 +243,28 @@ func (h *alertCenterHandler) registerRoutes(ws *restful.WebService) {
 
 	// ── Notification Contacts ─────────────────────────────────────────────────
 	ws.Route(ws.GET("/alert/contacts").To(h.listContacts).Doc("List contacts").
-		Metadata(label.MetaIdentity, label.ContactList).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Contact").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/alert/contacts").To(h.createContact).Doc("Create contact").
-		Metadata(label.MetaIdentity, label.ContactCreate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Contact").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.PUT("/alert/contacts/{id}").To(h.updateContact).Doc("Update contact").
-		Metadata(label.MetaIdentity, label.ContactUpdate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Contact").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/alert/contacts/{id}").To(h.deleteContact).Doc("Delete contact").
-		Metadata(label.MetaIdentity, label.ContactDelete).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Contact").
 		Metadata(label.MetaAuth, label.Enable).
@@ -272,28 +272,28 @@ func (h *alertCenterHandler) registerRoutes(ws *restful.WebService) {
 
 	// ── Notification Contact Groups ───────────────────────────────────────────
 	ws.Route(ws.GET("/alert/contact-groups").To(h.listContactGroups).Doc("List contact groups").
-		Metadata(label.MetaIdentity, label.ContactGroupList).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "ContactGroup").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/alert/contact-groups").To(h.createContactGroup).Doc("Create contact group").
-		Metadata(label.MetaIdentity, label.ContactGroupCreate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "ContactGroup").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.PUT("/alert/contact-groups/{id}").To(h.updateContactGroup).Doc("Update contact group").
-		Metadata(label.MetaIdentity, label.ContactGroupUpdate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "ContactGroup").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/alert/contact-groups/{id}").To(h.deleteContactGroup).Doc("Delete contact group").
-		Metadata(label.MetaIdentity, label.ContactGroupDelete).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "ContactGroup").
 		Metadata(label.MetaAuth, label.Enable).
@@ -301,28 +301,28 @@ func (h *alertCenterHandler) registerRoutes(ws *restful.WebService) {
 
 	// ── Inhibit Rules ─────────────────────────────────────────────────────────
 	ws.Route(ws.GET("/alert/inhibits").To(h.listInhibits).Doc("List inhibit rules").
-		Metadata(label.MetaIdentity, label.InhibitList).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Inhibit").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/alert/inhibits").To(h.createInhibit).Doc("Create inhibit rule").
-		Metadata(label.MetaIdentity, label.InhibitCreate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Inhibit").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.PUT("/alert/inhibits/{id}").To(h.updateInhibit).Doc("Update inhibit rule").
-		Metadata(label.MetaIdentity, label.InhibitUpdate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Inhibit").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/alert/inhibits/{id}").To(h.deleteInhibit).Doc("Delete inhibit rule").
-		Metadata(label.MetaIdentity, label.InhibitDelete).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Inhibit").
 		Metadata(label.MetaAuth, label.Enable).
@@ -330,28 +330,28 @@ func (h *alertCenterHandler) registerRoutes(ws *restful.WebService) {
 
 	// ── Escalation Policies ───────────────────────────────────────────────────
 	ws.Route(ws.GET("/alert/escalations").To(h.listEscalations).Doc("List escalation policies").
-		Metadata(label.MetaIdentity, label.EscalationList).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Escalation").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/alert/escalations").To(h.createEscalation).Doc("Create escalation policy").
-		Metadata(label.MetaIdentity, label.EscalationCreate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Escalation").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.PUT("/alert/escalations/{id}").To(h.updateEscalation).Doc("Update escalation policy").
-		Metadata(label.MetaIdentity, label.EscalationUpdate).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Escalation").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/alert/escalations/{id}").To(h.deleteEscalation).Doc("Delete escalation policy").
-		Metadata(label.MetaIdentity, label.EscalationDelete).
+		Metadata(label.MetaIdentity, label.NotificationAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "Escalation").
 		Metadata(label.MetaAuth, label.Enable).

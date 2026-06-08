@@ -46,6 +46,7 @@ import { kindDefaults } from './shared/defaults'
 import { attachKafkaError } from './shared/kafkaMapping'
 import { formToPayload, rowToForm } from './shared/serialize'
 import type { DataSourceFormShape } from './shared/types'
+import { useTheme } from '../../hooks/useTheme'
 
 import { ElasticForm } from './forms/ElasticForm'
 import { KafkaBasicSection, KafkaMappingSection } from './forms/KafkaForm'
@@ -59,6 +60,7 @@ export default function DataSources() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [tab, setTab] = useState<'all' | DataSourceKind>('all')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<DataSource | null>(null)
@@ -234,7 +236,7 @@ export default function DataSources() {
       render: (v: boolean, row: DataSource) => {
         if (!isAIEligibleKind(row.kind)) {
           return (
-            <Tooltip title="仅 Kafka / OpenSearch / Elasticsearch 数据源支持 AI 分析">
+            <Tooltip title="该数据源类型暂不支持 AI 分析">
               <Tag style={{ fontSize: 11 }}>不支持</Tag>
             </Tooltip>
           )
@@ -404,9 +406,9 @@ export default function DataSources() {
         width="min(960px, 80vw)"
         onClose={() => { setOpen(false); setEditing(null) }}
         styles={{
-          header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-          body:   { background: '#111111', padding: '20px 24px' },
-          footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+          header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+          body:   { background: c.bgSurface, padding: '20px 24px' },
+          footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
         }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -471,6 +473,7 @@ interface BasicTabProps {
 
 function BasicTab({ activeKind, editing }: BasicTabProps) {
   const form = Form.useFormInstance()
+  const { c } = useTheme()
   return (
     <>
       <Form.Item name="name" label="名称" rules={[{ required: true, message: '名称必填' }]}>
@@ -493,7 +496,7 @@ function BasicTab({ activeKind, editing }: BasicTabProps) {
       {activeKind === 'elastic'    && <ElasticForm    editing={editing} />}
       {activeKind === 'kafka'      && <KafkaBasicSection editing={editing} />}
 
-      <Divider style={{ borderColor: '#1e1e1e', margin: '8px 0 16px' }} />
+      <Divider style={{ borderColor: c.border, margin: '8px 0 16px' }} />
 
       {isAIEligibleKind(activeKind) && (
         <>
@@ -502,8 +505,8 @@ function BasicTab({ activeKind, editing }: BasicTabProps) {
             label="AI 分析"
             valuePropName="checked"
             extra={
-              <span style={{ color: '#666', fontSize: 11 }}>
-                仅日志类数据源支持。开启后事件详情可手动「触发 AI 分析」；关闭则隐藏 AI 入口且不消耗 token。
+              <span style={{ color: c.textHint, fontSize: 11 }}>
+                开启后事件详情可手动「触发 AI 分析」；关闭则隐藏 AI 入口且不消耗 token。
               </span>
             }
           >
@@ -520,7 +523,7 @@ function BasicTab({ activeKind, editing }: BasicTabProps) {
                 valuePropName="checked"
                 hidden={!form.getFieldValue('ai_enabled')}
                 extra={
-                  <span style={{ color: '#666', fontSize: 11 }}>
+                  <span style={{ color: c.textHint, fontSize: 11 }}>
                     默认关闭：聚合并通知后由人工决定是否分析，最省 token。开启后新事件会立即入队 AI 任务。
                   </span>
                 }
@@ -533,7 +536,7 @@ function BasicTab({ activeKind, editing }: BasicTabProps) {
       )}
 
       <Form.Item name="is_default" label="设为该 kind 的默认" valuePropName="checked" extra={
-        <span style={{ color: '#666', fontSize: 11 }}>
+        <span style={{ color: c.textHint, fontSize: 11 }}>
           每个 kind 仅一个默认；AI 分析 / 连接器在没有显式 source_id 时使用该默认行。
         </span>
       }>

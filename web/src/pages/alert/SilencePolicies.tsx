@@ -9,6 +9,7 @@ import dayjs from 'dayjs'
 import { getSilences, createSilence, deleteSilence } from '../../api/alert'
 import { PageHeader } from '../../components/PageHeader'
 import { SurfaceCard } from '../../components/SurfaceCard'
+import { useTheme } from '../../hooks/useTheme'
 import type { SilencePolicy } from '../../types'
 
 const { Text } = Typography
@@ -18,6 +19,7 @@ const { RangePicker } = DatePicker
 export default function SilencePolicies() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [open, setOpen] = useState(false)
   const [form] = Form.useForm()
   const now = dayjs()
@@ -71,7 +73,7 @@ export default function SilencePolicies() {
       title: '匹配条件',
       dataIndex: 'matchers',
       render: (m: unknown[]) => (
-        <span style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>
+        <span style={{ fontSize: 11, color: c.textSecondary, fontFamily: 'monospace' }}>
           {Array.isArray(m) ? m.map((x: unknown) => {
             const matcher = x as { key?: string; op?: string; value?: string }
             return `${matcher.key}${matcher.op}${matcher.value}`
@@ -83,13 +85,13 @@ export default function SilencePolicies() {
       title: '开始时间',
       dataIndex: 'starts_at',
       width: 140,
-      render: (t: string) => <span style={{ fontSize: 12, color: '#888' }}>{dayjs(t).format('MM-DD HH:mm')}</span>,
+      render: (t: string) => <span style={{ fontSize: 12, color: c.textSecondary }}>{dayjs(t).format('MM-DD HH:mm')}</span>,
     },
     {
       title: '结束时间',
       dataIndex: 'ends_at',
       width: 140,
-      render: (t: string) => <span style={{ fontSize: 12, color: '#888' }}>{dayjs(t).format('MM-DD HH:mm')}</span>,
+      render: (t: string) => <span style={{ fontSize: 12, color: c.textSecondary }}>{dayjs(t).format('MM-DD HH:mm')}</span>,
     },
     {
       title: '创建人',
@@ -131,9 +133,9 @@ export default function SilencePolicies() {
         size={560}
         onClose={() => setOpen(false)}
         styles={{
-          header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-          body: { background: '#111111', padding: '20px 24px' },
-          footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+          header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+          body: { background: c.bgSurface, padding: '20px 24px' },
+          footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
         }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

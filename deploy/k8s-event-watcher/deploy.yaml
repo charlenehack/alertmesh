@@ -1,0 +1,89 @@
+# K8s Event Watcher 部署清单
+# 使用方法：kubectl apply -f deploy.yaml
+#
+# 默认仅推送 Warning 类型事件。
+# 如需推送所有事件（含 Normal），设置 WARNING_ONLY=false
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-event-watcher
+  namespace: monitoring
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-event-watcher
+rules:
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-event-watcher
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-event-watcher
+subjects:
+  - kind: ServiceAccount
+    name: k8s-event-watcher
+    namespace: monitoring
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-event-watcher
+  namespace: monitoring
+  labels:
+    app: k8s-event-watcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-event-watcher
+  template:
+    metadata:
+      labels:
+        app: k8s-event-watcher
+    spec:
+      serviceAccountName: k8s-event-watcher
+      containers:
+        - name: watcher
+          image: k8s-event-watcher:latest
+          env:
+            - name: ALERTMESH_URL
+              value: "http://10.11.12.146:8081"
+            # 仅推送 Warning 事件，设为 false 则推送所有（含 Normal）
+            - name: WARNING_ONLY
+              value: "true"
+            # 多集群时设置集群名称，写入 label 便于区分
+            - name: CLUSTER_NAME
+              value: ""
+            # 批量聚合窗口（秒）
+            - name: BATCH_WINDOW
+              value: "1.0"
+          volumeMounts:
+            - name: cache
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "watcher.py"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: cache
+          emptyDir: {}

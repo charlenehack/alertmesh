@@ -3,11 +3,6 @@ package label
 const (
 	SysModuleName = "系统管理"
 
-	ConfigRead  = "configRead"
-	ConfigWrite = "configWrite"
-	UserRead    = "userRead"
-	UserWrite   = "userWrite"
-	OncallRead  = "oncallRead"
-	OncallWrite = "oncallWrite"
-	ReportRead  = "reportRead"
+	// 系统管理全部为管理员专属，使用单一权限点
+	SysAccess = "sysAccess"
 )

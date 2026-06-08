@@ -101,6 +101,19 @@ export interface IncidentTimeline {
 export interface Role {
   id: number
   name: string
+  description?: string
+  status?: boolean
+  parents?: string[]
+  endpoints?: Endpoint[]
+}
+
+export interface Endpoint {
+  path: string
+  method: string
+  module: string
+  kind: string
+  identity: string
+  remark: string
 }
 
 export interface User {

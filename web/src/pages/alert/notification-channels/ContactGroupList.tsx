@@ -8,6 +8,7 @@ import {
 } from '../../../api/alert'
 import type { NotificationContactGroup } from '../../../types'
 import { Toolbar } from './Toolbar'
+import { useTheme } from '../../../hooks/useTheme'
 
 const { Text } = Typography
 const { Option } = Select
@@ -15,6 +16,7 @@ const { Option } = Select
 export function ContactGroupList() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<NotificationContactGroup | null>(null)
@@ -56,7 +58,7 @@ export function ContactGroupList() {
     { title: '分组名称', dataIndex: 'name', render: (n: string) => <Text style={{ fontWeight: 500 }}>{n}</Text> },
     {
       title: '描述', dataIndex: 'description',
-      render: (d: string) => <Text style={{ color: '#666', fontSize: 12 }}>{d || '—'}</Text>,
+      render: (d: string) => <Text style={{ color: c.textHint, fontSize: 12 }}>{d || '—'}</Text>,
     },
     {
       title: '联系人',
@@ -64,11 +66,11 @@ export function ContactGroupList() {
       render: (ids: string[]) => (
         <Space size={4} wrap>
           {(ids || []).map((id) => (
-            <Tag key={id} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#999', fontSize: 11 }}>
+            <Tag key={id} style={{ background: c.bgElevated, border: `1px solid ${c.border}`, color: c.textSecondary, fontSize: 11 }}>
               {nameMap[id] || id.slice(0, 8)}
             </Tag>
           ))}
-          {(!ids || ids.length === 0) && <span style={{ color: '#444' }}>—</span>}
+          {(!ids || ids.length === 0) && <span style={{ color: c.textTertiary }}>—</span>}
         </Space>
       ),
     },
@@ -108,9 +110,9 @@ export function ContactGroupList() {
         size={480}
         onClose={() => { setOpen(false); setEditing(null) }}
         styles={{
-          header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-          body: { background: '#111111', padding: '20px 24px' },
-          footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+          header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+          body: { background: c.bgSurface, padding: '20px 24px' },
+          footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
         }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

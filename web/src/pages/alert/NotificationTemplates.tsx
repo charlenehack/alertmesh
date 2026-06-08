@@ -8,6 +8,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, MessageOutlined } from '@an
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from '../../api/alert'
 import { PageHeader } from '../../components/PageHeader'
 import { SurfaceCard } from '../../components/SurfaceCard'
+import { useTheme } from '../../hooks/useTheme'
 import type { NotificationTemplate, ChannelType } from '../../types'
 
 const { Text } = Typography
@@ -25,6 +26,7 @@ const CHANNEL_TYPES: { value: ChannelType; label: string }[] = [
 export default function NotificationTemplates() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<NotificationTemplate | null>(null)
   const [form] = Form.useForm()
@@ -112,9 +114,9 @@ export default function NotificationTemplates() {
         size={640}
         onClose={() => { setOpen(false); setEditing(null) }}
         styles={{
-          header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-          body: { background: '#111111', padding: '20px 24px' },
-          footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+          header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+          body: { background: c.bgSurface, padding: '20px 24px' },
+          footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
         }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

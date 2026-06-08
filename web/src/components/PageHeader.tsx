@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Space, Typography } from 'antd'
-import { colors } from '../theme/tokens'
+import { useTheme } from '../hooks/useTheme'
 
 const { Title, Text } = Typography
 
@@ -11,16 +11,14 @@ interface PageHeaderProps {
   extra?: ReactNode
 }
 
-// Standard page chrome — replaces the ~20 instances of an identical
-// `<div style={{display:'flex',justifyContent:'space-between',marginBottom:20}}>`
-// block scattered across the admin pages (DataSources, AlertRoutes,
-// WebhookSources, NotificationTemplates, LLMProviders, ...).
+// Standard page chrome — adapts to dark / light theme automatically.
 export function PageHeader({ title, icon, description, extra }: PageHeaderProps) {
+  const { c } = useTheme()
   return (
     <div className="am-page-header">
       <Space size={10} align="center">
-        {icon && <span style={{ fontSize: 18, color: colors.textStrong, lineHeight: 0 }}>{icon}</span>}
-        <Title level={5} style={{ margin: 0, color: colors.textStrong }}>{title}</Title>
+        {icon && <span style={{ fontSize: 18, color: c.primary, lineHeight: 0 }}>{icon}</span>}
+        <Title level={5} style={{ margin: 0, color: c.textBody }}>{title}</Title>
         {description && (
           <Text type="secondary" style={{ fontSize: 12 }}>{description}</Text>
         )}

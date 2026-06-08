@@ -1,10 +1,14 @@
 package ai
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	nethttp "net/http"
 	"sort"
 	"strings"
 	"time"
@@ -12,6 +16,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/callbacks"
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/anthropic"
 	"github.com/tmc/langchaingo/llms/openai"
 	"gorm.io/gorm"
 
@@ -89,18 +95,7 @@ func (a *Agent) Analyze(ctx context.Context, incidentID string, cb callbacks.Han
 		return "", fmt.Errorf("decrypt LLM API key: %w", err)
 	}
 
-	llmOpts := []openai.Option{
-		openai.WithToken(apiKey),
-		openai.WithModel(provider.ModelName),
-	}
-	if provider.BaseURL != "" {
-		llmOpts = append(llmOpts, openai.WithBaseURL(provider.BaseURL))
-	}
-	if cb != nil {
-		llmOpts = append(llmOpts, openai.WithCallback(cb))
-	}
-
-	llm, err := openai.New(llmOpts...)
+	llm, err := newLLMFromProvider(provider, apiKey, cb)
 	if err != nil {
 		return "", fmt.Errorf("create LLM client: %w", err)
 	}
@@ -187,18 +182,7 @@ func (a *Agent) Chat(ctx context.Context, incidentID, question string, history [
 		return "", fmt.Errorf("decrypt LLM API key: %w", err)
 	}
 
-	llmOpts := []openai.Option{
-		openai.WithToken(apiKey),
-		openai.WithModel(provider.ModelName),
-	}
-	if provider.BaseURL != "" {
-		llmOpts = append(llmOpts, openai.WithBaseURL(provider.BaseURL))
-	}
-	if cb != nil {
-		llmOpts = append(llmOpts, openai.WithCallback(cb))
-	}
-
-	llm, err := openai.New(llmOpts...)
+	llm, err := newLLMFromProvider(provider, apiKey, cb)
 	if err != nil {
 		return "", fmt.Errorf("create LLM client: %w", err)
 	}
@@ -262,6 +246,45 @@ func (a *Agent) decryptAPIKey(encrypted string) (string, error) { //nolint:unpar
 		return encrypted, nil //nolint:nilerr
 	}
 	return decrypted, nil
+}
+
+// newLLMFromProvider creates the appropriate langchaingo LLM based on provider kind.
+func newLLMFromProvider(provider model.LLMProvider, apiKey string, cb callbacks.Handler) (llms.Model, error) {
+	switch provider.Provider {
+	case "anthropic":
+		baseURL := provider.BaseURL
+		if baseURL != "" && !strings.HasSuffix(baseURL, "/v1") {
+			baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
+		}
+		llm, err := anthropic.New(
+			anthropic.WithToken(apiKey),
+			anthropic.WithModel(provider.ModelName),
+			anthropic.WithBaseURL(baseURL),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create anthropic LLM: %w", err)
+		}
+		if cb != nil {
+			llm.CallbacksHandler = cb
+		}
+		return llm, nil
+	default:
+		opts := []openai.Option{
+			openai.WithToken(apiKey),
+			openai.WithModel(provider.ModelName),
+		}
+		if provider.BaseURL != "" {
+			opts = append(opts, openai.WithBaseURL(provider.BaseURL))
+		}
+		if cb != nil {
+			opts = append(opts, openai.WithCallback(cb))
+		}
+		llm, err := openai.New(opts...)
+		if err != nil {
+			return nil, fmt.Errorf("create openai LLM: %w", err)
+		}
+		return llm, nil
+	}
 }
 
 // maxAlertDetailsRunes caps the Alert Details section in the analysis prompt
@@ -711,4 +734,184 @@ func chatRoleLabels(language string) (roleAI, roleUser, header string) { //nolin
 		return "AI", "User", "## Prior chat turns\n"
 	}
 	return "AI", "运维", "## 之前的追问对话\n"
+}
+
+// K8sAnalysisKind distinguishes which K8s artefact is being analysed.
+type K8sAnalysisKind string
+
+const (
+	K8sAnalysisLogs   K8sAnalysisKind = "logs"
+	K8sAnalysisEvents K8sAnalysisKind = "events"
+)
+
+// AnalyzeK8sRequest carries the metadata and raw text for a K8s AI analysis.
+type AnalyzeK8sRequest struct {
+	ResourceKind string          // Pod / Deployment / DaemonSet
+	Namespace    string
+	Name         string
+	AnalysisKind K8sAnalysisKind // "logs" or "events"
+	Content      string          // raw log lines or JSON-formatted event list
+}
+
+// AnalyzeK8s calls the default LLM provider and streams the response token by
+// token via the onToken callback.  The caller is responsible for flushing the
+// HTTP response; this function blocks until the stream is complete or ctx is
+// cancelled.
+func (a *Agent) AnalyzeK8s(ctx context.Context, req AnalyzeK8sRequest, onToken func(string)) error {
+	var provider model.LLMProvider
+	if err := a.db.WithContext(ctx).Where("is_default = ? AND is_enabled = ?", true, true).First(&provider).Error; err != nil {
+		return fmt.Errorf("no default LLM provider configured: %w", err)
+	}
+
+	apiKey, err := a.decryptAPIKey(provider.APIKey)
+	if err != nil {
+		return fmt.Errorf("decrypt LLM API key: %w", err)
+	}
+
+	language := resolveLanguage(provider)
+	prompt := buildK8sAnalysisPrompt(req, language)
+
+	log.Info().
+		Str("resource", req.ResourceKind+"/"+req.Namespace+"/"+req.Name).
+		Str("kind", string(req.AnalysisKind)).
+		Msg("starting K8s AI analysis")
+
+	// Use direct HTTP streaming for Anthropic to avoid langchaingo SSE parsing bugs.
+	// For other providers fall back to langchaingo.
+	if provider.Provider == "anthropic" {
+		return streamAnthropicDirect(ctx, apiKey, provider.BaseURL, provider.ModelName, prompt, onToken)
+	}
+
+	llmModel, err := newLLMFromProvider(provider, apiKey, nil)
+	if err != nil {
+		return fmt.Errorf("create LLM client: %w", err)
+	}
+	_, err = llmModel.GenerateContent(ctx,
+		[]llms.MessageContent{
+			{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextPart(prompt)}},
+		},
+		llms.WithStreamingFunc(func(_ context.Context, chunk []byte) error {
+			if len(chunk) > 0 {
+				onToken(string(chunk))
+			}
+			return nil
+		}),
+	)
+	return err
+}
+
+// streamAnthropicDirect calls the Anthropic Messages API directly via HTTP streaming,
+// bypassing langchaingo to avoid its SSE parsing bugs on error events.
+func streamAnthropicDirect(ctx context.Context, apiKey, baseURL, modelName, prompt string, onToken func(string)) error {
+	if baseURL == "" {
+		baseURL = "https://api.anthropic.com/v1"
+	} else {
+		// ensure /v1 suffix
+		baseURL = strings.TrimRight(baseURL, "/")
+		if !strings.HasSuffix(baseURL, "/v1") {
+			baseURL += "/v1"
+		}
+	}
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"model":      modelName,
+		"max_tokens": 4096,
+		"stream":     true,
+		"messages": []map[string]interface{}{
+			{"role": "user", "content": prompt},
+		},
+	})
+
+	httpReq, err := nethttp.NewRequestWithContext(ctx, nethttp.MethodPost, baseURL+"/messages", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("build anthropic request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-api-key", apiKey)
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := nethttp.DefaultClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("anthropic request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != nethttp.StatusOK {
+		errBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("anthropic API error %d: %s", resp.StatusCode, errBody)
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := line[6:] // strip "data: "
+		if data == "[DONE]" {
+			break
+		}
+		var event struct {
+			Type  string `json:"type"`
+			Delta struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"delta"`
+			Error struct {
+				Type    string `json:"type"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			continue // skip malformed / non-JSON events
+		}
+		switch event.Type {
+		case "content_block_delta":
+			if event.Delta.Type == "text_delta" && event.Delta.Text != "" {
+				onToken(event.Delta.Text)
+			}
+		case "error":
+			return fmt.Errorf("anthropic stream error: %s – %s", event.Error.Type, event.Error.Message)
+		}
+	}
+	return scanner.Err()
+}
+
+// buildK8sAnalysisPrompt constructs the analysis prompt based on kind and language.
+func buildK8sAnalysisPrompt(req AnalyzeK8sRequest, language string) string {
+	var subject, instruct string
+	switch req.AnalysisKind {
+	case K8sAnalysisLogs:
+		subject = "container logs"
+		instruct = "Identify errors, warnings, exceptions, and abnormal patterns. Summarise the root cause and suggest remediation steps."
+	case K8sAnalysisEvents:
+		subject = "Kubernetes events"
+		instruct = "Identify Warning-type events, scheduling failures, image pull errors, OOMKills, and other anomalies. Summarise the root cause and suggest remediation steps."
+	}
+
+	switch language {
+	case "en":
+		return fmt.Sprintf(`You are a senior SRE. Analyse the following %s for %s "%s/%s".
+
+%s
+
+## Raw Data
+
+%s`,
+			subject, req.ResourceKind, req.Namespace, req.Name, instruct, req.Content)
+	default: // zh / auto → Chinese
+		var subjectZh string
+		if req.AnalysisKind == K8sAnalysisLogs {
+			subjectZh = "容器日志"
+		} else {
+			subjectZh = "Kubernetes 事件"
+		}
+		return fmt.Sprintf(`你是一位资深 SRE。请分析以下 %s %s "%s/%s" 的%s。
+
+请识别错误、异常、警告、掉 Pod 原因等问题，给出简明准确的根因分析和修复建议。使用 Markdown 格式输出。
+
+## 原始数据
+
+%s`, req.ResourceKind, subjectZh, req.Namespace, req.Name, subjectZh, req.Content)
+	}
 }

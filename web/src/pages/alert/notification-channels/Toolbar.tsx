@@ -1,6 +1,7 @@
 import { Button, Input } from 'antd'
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
+import { useTheme } from '../../../hooks/useTheme'
 
 interface ToolbarProps {
   createLabel: string
@@ -11,6 +12,7 @@ interface ToolbarProps {
 }
 
 export function Toolbar({ createLabel, onSearch, onCreate, onRefresh, extra }: ToolbarProps) {
+  const { c } = useTheme()
   return (
     <div
       style={{
@@ -18,7 +20,7 @@ export function Toolbar({ createLabel, onSearch, onCreate, onRefresh, extra }: T
         alignItems: 'center',
         gap: 8,
         padding: '12px 16px',
-        borderBottom: '1px solid #1e1e1e',
+        borderBottom: `1px solid ${c.border}`,
       }}
     >
       <Button
@@ -26,7 +28,6 @@ export function Toolbar({ createLabel, onSearch, onCreate, onRefresh, extra }: T
         icon={<PlusOutlined />}
         onClick={onCreate}
         size="small"
-        style={{ background: '#1677ff', border: 'none' }}
       >
         {createLabel}
       </Button>
@@ -34,9 +35,9 @@ export function Toolbar({ createLabel, onSearch, onCreate, onRefresh, extra }: T
       <div style={{ flex: 1 }} />
       <Input
         placeholder="请输入名称搜索"
-        prefix={<SearchOutlined style={{ color: '#555' }} />}
+        prefix={<SearchOutlined style={{ color: c.textHint }} />}
         size="small"
-        style={{ width: 200, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#e8e8e8' }}
+        style={{ width: 200 }}
         allowClear
         onChange={(e) => onSearch(e.target.value)}
       />
@@ -45,18 +46,19 @@ export function Toolbar({ createLabel, onSearch, onCreate, onRefresh, extra }: T
         size="small"
         type="text"
         onClick={onRefresh}
-        style={{ color: '#666' }}
+        style={{ color: c.textHint }}
       />
     </div>
   )
 }
 
 export function PageCard({ children }: { children: ReactNode }) {
+  const { c } = useTheme()
   return (
     <div
       style={{
-        background: '#111111',
-        border: '1px solid #1e1e1e',
+        background: c.bgSurface,
+        border: `1px solid ${c.borderSubtle}`,
         borderRadius: 8,
         overflow: 'hidden',
       }}

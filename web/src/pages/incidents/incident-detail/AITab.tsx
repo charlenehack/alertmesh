@@ -238,8 +238,8 @@ export function AITab(p: AITabProps) {
                     maxWidth: '82%',
                     padding: '10px 14px',
                     borderRadius: 10,
-                    background: conv.role === 'user' ? '#722ed1' : '#1a1a1a',
-                    border: conv.role === 'user' ? 'none' : '1px solid #2a2a2a',
+                    background: conv.role === 'user' ? '#722ed1' : '#f8f8fc',
+                    border: conv.role === 'user' ? 'none' : '1px solid #e9e0f8',
                   }}
                 >
                   <MarkdownView source={conv.content} inverted={conv.role === 'user'} />

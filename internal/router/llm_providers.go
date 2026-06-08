@@ -40,6 +40,7 @@ import (
 
 	restful "github.com/emicklei/go-restful/v3"
 	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/anthropic"
 	"github.com/tmc/langchaingo/llms/openai"
 	"gorm.io/gorm"
 
@@ -60,48 +61,48 @@ const apiKeyMask = "******"
 func (h *aiHandler) registerLLMProviderRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/llm-providers").To(h.listLLMProviders).
 		Doc("List LLM providers (api_key masked)").
-		Metadata(label.MetaIdentity, label.LLMProviderList).
-		Metadata(label.MetaModule, label.AIModuleName).
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "LLMProvider").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/llm-providers").To(h.createLLMProvider).
 		Doc("Create LLM provider").
-		Metadata(label.MetaIdentity, label.LLMProviderCreate).
-		Metadata(label.MetaModule, label.AIModuleName).
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "LLMProvider").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.PUT("/llm-providers/{id}").To(h.updateLLMProvider).
 		Doc("Update LLM provider (api_key '******' keeps existing value)").
-		Metadata(label.MetaIdentity, label.LLMProviderUpdate).
-		Metadata(label.MetaModule, label.AIModuleName).
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "LLMProvider").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/llm-providers/{id}/set-default").To(h.setDefaultLLMProvider).
 		Doc("Mark this provider as the default; clears is_default on all others").
-		Metadata(label.MetaIdentity, label.LLMProviderDefault).
-		Metadata(label.MetaModule, label.AIModuleName).
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "LLMProvider").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.POST("/llm-providers/{id}/test").To(h.testLLMProvider).
 		Doc("Send a tiny prompt to verify credentials / base_url / model are reachable").
-		Metadata(label.MetaIdentity, label.LLMProviderTest).
-		Metadata(label.MetaModule, label.AIModuleName).
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "LLMProvider").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
 	ws.Route(ws.DELETE("/llm-providers/{id}").To(h.deleteLLMProvider).
 		Doc("Delete LLM provider").
-		Metadata(label.MetaIdentity, label.LLMProviderDelete).
-		Metadata(label.MetaModule, label.AIModuleName).
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "LLMProvider").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
@@ -391,17 +392,36 @@ func (h *aiHandler) testLLMProvider(req *restful.Request, resp *restful.Response
 		return
 	}
 
-	llmOpts := []openai.Option{
-		openai.WithToken(apiKey),
-		openai.WithModel(provider.ModelName),
-	}
-	if provider.BaseURL != "" {
-		llmOpts = append(llmOpts, openai.WithBaseURL(provider.BaseURL))
-	}
-	llm, err := openai.New(llmOpts...)
-	if err != nil {
-		httputil.Error(resp, http.StatusBadGateway, "init LLM client: "+err.Error())
-		return
+	var llm llms.Model
+	var err error
+	switch provider.Provider {
+	case "anthropic":
+		baseURL := provider.BaseURL
+		if baseURL != "" && !strings.HasSuffix(baseURL, "/v1") {
+			baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
+		}
+		llm, err = anthropic.New(
+			anthropic.WithToken(apiKey),
+			anthropic.WithModel(provider.ModelName),
+			anthropic.WithBaseURL(baseURL),
+		)
+		if err != nil {
+			httputil.Error(resp, http.StatusBadGateway, "init anthropic LLM client: "+err.Error())
+			return
+		}
+	default:
+		llmOpts := []openai.Option{
+			openai.WithToken(apiKey),
+			openai.WithModel(provider.ModelName),
+		}
+		if provider.BaseURL != "" {
+			llmOpts = append(llmOpts, openai.WithBaseURL(provider.BaseURL))
+		}
+		llm, err = openai.New(llmOpts...)
+		if err != nil {
+			httputil.Error(resp, http.StatusBadGateway, "init openai LLM client: "+err.Error())
+			return
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(req.Request.Context(), 15*time.Second)

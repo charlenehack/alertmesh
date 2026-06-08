@@ -4,6 +4,7 @@ import { App, Button, Drawer, Form, Input, Select, Space } from 'antd'
 import { createContactGroup } from '../../../api/alert'
 import type { NotificationContact, NotificationContactGroup } from '../../../types'
 import { ContactGroupPicker } from './ContactGroupPicker'
+import { useTheme } from '../../../hooks/useTheme'
 
 const { Option } = Select
 
@@ -32,6 +33,7 @@ export function ContactDrawer({
 }: ContactDrawerProps) {
   const [objectType, setObjectType] = useState<'contact' | 'group'>('contact')
   const [enabledWebhooks, setEnabledWebhooks] = useState<Set<WebhookKey>>(new Set(['webhook']))
+  const { c } = useTheme()
 
   const handleClose = () => {
     setObjectType('contact')
@@ -55,16 +57,15 @@ export function ContactDrawer({
       size={640}
       onClose={handleClose}
       styles={{
-        header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-        body: { background: '#111111', padding: '20px 24px' },
-        footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+        header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+        body: { background: c.bgSurface, padding: '20px 24px' },
+        footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
       }}
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <Button onClick={handleClose}>取消</Button>
           <Button
             type="primary" loading={loading} onClick={() => form.submit()}
-            style={{ background: '#1677ff', border: 'none' }}
           >
             确定
           </Button>
@@ -74,7 +75,7 @@ export function ContactDrawer({
       {/* 对象类型 toggle (only when creating) */}
       {!editing && (
         <Form.Item
-          label={<span style={{ color: '#e8e8e8', fontSize: 13 }}>对象类型</span>}
+          label={<span style={{ color: c.textBody, fontSize: 13 }}>对象类型</span>}
           required
           style={{ marginBottom: 20 }}
         >
@@ -83,7 +84,7 @@ export function ContactDrawer({
               type={objectType === 'contact' ? 'primary' : 'default'}
               onClick={() => setObjectType('contact')}
               style={objectType === 'contact'
-                ? { borderRadius: '6px 0 0 6px', background: '#1677ff', border: 'none' }
+                ? { borderRadius: '6px 0 0 6px' }
                 : { borderRadius: '6px 0 0 6px' }}
             >
               联系人
@@ -92,7 +93,7 @@ export function ContactDrawer({
               type={objectType === 'group' ? 'primary' : 'default'}
               onClick={() => setObjectType('group')}
               style={objectType === 'group'
-                ? { borderRadius: '0 6px 6px 0', background: '#1677ff', border: 'none' }
+                ? { borderRadius: '0 6px 6px 0' }
                 : { borderRadius: '0 6px 6px 0' }}
             >
               联系人组
@@ -105,7 +106,7 @@ export function ContactDrawer({
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item
             name="name"
-            label={<span style={{ color: '#e8e8e8', fontSize: 13 }}>名称</span>}
+            label={<span style={{ color: c.textBody, fontSize: 13 }}>名称</span>}
             rules={[
               { required: true, message: '请输入名称' },
               { max: 128, message: '最长 128 个字符' },
@@ -116,19 +117,19 @@ export function ContactDrawer({
             <Input placeholder="请输入" />
           </Form.Item>
 
-          <Form.Item name="email" label={<span style={{ color: '#e8e8e8', fontSize: 13 }}>邮箱</span>}>
+          <Form.Item name="email" label={<span style={{ color: c.textBody, fontSize: 13 }}>邮筱</span>}>
             <Input placeholder="请输入" />
           </Form.Item>
 
           <Form.Item
             name="phone"
-            label={<span style={{ color: '#e8e8e8', fontSize: 13 }}>手机</span>}
-            extra={<span style={{ color: '#555', fontSize: 11 }}>为避免告警风暴，仅 P0 告警可使用电话对接</span>}
+            label={<span style={{ color: c.textBody, fontSize: 13 }}>手机</span>}
+            extra={<span style={{ color: c.textHint, fontSize: 11 }}>为避免告警风暴，仅 P0 告警可使用电话对接</span>}
           >
             <Input placeholder="请输入" addonBefore="+86" />
           </Form.Item>
 
-          <div style={{ color: '#e8e8e8', fontSize: 13, fontWeight: 500, marginTop: 16, marginBottom: 10 }}>
+          <div style={{ color: c.textBody, fontSize: 13, fontWeight: 500, marginTop: 16, marginBottom: 10 }}>
             Webhook
           </div>
           <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
@@ -138,14 +139,14 @@ export function ContactDrawer({
                 <label
                   key={w.key}
                   onClick={() => toggleWebhook(w.key)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: checked ? '#e8e8e8' : '#666' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: checked ? c.textBody : c.textHint }}
                 >
                   <span
                     style={{
                       width: 16, height: 16, borderRadius: 3,
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                       background: checked ? '#1677ff' : 'transparent',
-                      border: checked ? 'none' : '1px solid #444',
+                      border: checked ? 'none' : `1px solid ${c.border}`,
                     }}
                   >
                     {checked && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
@@ -169,7 +170,7 @@ export function ContactDrawer({
             <WebhookFields title="钉钉机器人" urlField="dingtalk_webhook" tokenField="dingtalk_secret" tokenPlaceholder="加签 Secret（可选，加密存储）" />
           )}
 
-          <div style={{ color: '#e8e8e8', fontSize: 13, fontWeight: 500, marginTop: 20, marginBottom: 10 }}>
+          <div style={{ color: c.textBody, fontSize: 13, fontWeight: 500, marginTop: 20, marginBottom: 10 }}>
             联系人组
           </div>
           <Form.Item name="group_ids">
@@ -195,7 +196,7 @@ function NameRules() {
   return (
     <div style={{ marginTop: 4 }}>
       {rules.map((text) => (
-        <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#666', lineHeight: '20px' }}>
+        <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: c.textHint, lineHeight: '20px' }}>
           <span style={{ color: '#52c41a' }}>●</span>{text}
         </div>
       ))}
@@ -217,7 +218,7 @@ function WebhookFields({
 }: WebhookFieldsProps) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ color: '#999', fontSize: 12, marginBottom: 6 }}>{title}</div>
+      <div style={{ color: c.textHint, fontSize: 12, marginBottom: 6 }}>{title}</div>
       {urlField && (
         <Form.Item name={urlField} style={{ marginBottom: 8 }}>
           <Input placeholder="请输入 Webhook URL" />
@@ -244,6 +245,7 @@ function ContactGroupInlineForm({
 }) {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c: gc } = useTheme()
   const [form] = Form.useForm()
 
   const saveMut = useMutation({
@@ -261,14 +263,14 @@ function ContactGroupInlineForm({
     <Form form={form} layout="vertical" onFinish={(v) => saveMut.mutate(v as Partial<NotificationContactGroup>)}>
       <Form.Item
         name="name"
-        label={<span style={{ color: '#e8e8e8', fontSize: 13 }}>分组名称</span>}
+        label={<span style={{ color: gc.textBody, fontSize: 13 }}>分组名称</span>}
         rules={[{ required: true, message: '请输入分组名称' }]}
       >
         <Input placeholder="请输入" />
       </Form.Item>
       <Form.Item
         name="contact_ids"
-        label={<span style={{ color: '#e8e8e8', fontSize: 13 }}>选择联系人</span>}
+        label={<span style={{ color: gc.textBody, fontSize: 13 }}>选择联系人</span>}
         rules={[{ required: true, message: '请选择至少一个联系人' }]}
       >
         <Select mode="multiple" placeholder="选择联系人" style={{ width: '100%' }}>
@@ -277,15 +279,12 @@ function ContactGroupInlineForm({
           ))}
         </Select>
       </Form.Item>
-      <Form.Item name="description" label={<span style={{ color: '#e8e8e8', fontSize: 13 }}>描述</span>}>
+      <Form.Item name="description" label={<span style={{ color: gc.textBody, fontSize: 13 }}>描述</span>}>
         <Input placeholder="可选描述" />
       </Form.Item>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
         <Button onClick={onClose}>取消</Button>
-        <Button
-          type="primary" htmlType="submit" loading={saveMut.isPending}
-          style={{ background: '#1677ff', border: 'none' }}
-        >
+        <Button type="primary" htmlType="submit" loading={saveMut.isPending}>
           确定
         </Button>
       </div>

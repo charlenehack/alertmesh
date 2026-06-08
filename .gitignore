@@ -47,3 +47,9 @@ tmp/
 # Frontend
 web/node_modules/
 web/dist/
+
+# Runtime work directory (Nginx config delivery)
+work/usr/
+
+# Temporary deploy/debug scripts
+*.sh

@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 import { promQueryRange, getDataSources } from '../../api/datasources'
 import type { DataSource } from '../../types'
+import { useTheme } from '../../hooks/useTheme'
 
 const { Title, Text } = Typography
 
@@ -196,6 +197,7 @@ export default function PromExplore() {
   const { id = '' } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { c, isDark } = useTheme()
 
   const [query, setQuery]         = useState(searchParams.get('q') ?? '')
   const [rangeIdx, setRangeIdx]   = useState(3) // 1h default
@@ -352,8 +354,8 @@ export default function PromExplore() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/datasources')} />
-        <LineChartOutlined style={{ fontSize: 18, color: '#ffffff' }} />
-        <Title level={5} style={{ margin: 0, color: '#ffffff' }}>Explore</Title>
+        <LineChartOutlined style={{ fontSize: 18, color: c.primary }} />
+        <Title level={5} style={{ margin: 0, color: c.textBody }}>Explore</Title>
         {ds && (
           <Space>
             <Tag color="blue">{ds.name}</Tag>
@@ -371,7 +373,7 @@ export default function PromExplore() {
 
       {/* ── Query bar ─────────────────────────────────────────────── */}
       <Card
-        style={{ background: '#111111', border: '1px solid #1e1e1e', borderRadius: 8, marginBottom: 16 }}
+        style={{ background: c.bgSurface, border: `1px solid ${c.borderSubtle}`, borderRadius: 8, marginBottom: 16 }}
         styles={{ body: { padding: 12 } }}
       >
         <Space.Compact style={{ width: '100%' }}>
@@ -408,9 +410,9 @@ export default function PromExplore() {
 
       {/* ── Result panel ──────────────────────────────────────────── */}
       <Card
-        style={{ background: '#111111', border: '1px solid #1e1e1e', borderRadius: 8 }}
-        styles={{ body: { padding: 16 } }}
-      >
+        style={{ background: c.bgSurface, border: `1px solid ${c.borderSubtle}`, borderRadius: 8 }}
+        styles={{ body: { padding: 16 } }}>
+      
         {/* Tabs + summary, always present once the user has issued a query. */}
         {submitted && (
           <div style={{
@@ -497,25 +499,24 @@ export default function PromExplore() {
               initialDimension={{ width: 600, height: 420 }}
             >
               <LineChart data={chart.rows} margin={{ top: 12, right: 24, bottom: 8, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1f1f1f' : '#e8e8e8'} />
                 <XAxis
                   dataKey="time"
                   type="number"
                   scale="time"
                   domain={['dataMin', 'dataMax']}
                   tickFormatter={(v: number) => formatAxisTime(v, range.sec)}
-                  stroke="#666"
-                  tick={{ fontSize: 11 }}
-                />
+                  stroke={c.textHint}
+                  tick={{ fontSize: 11 }}/>
                 <YAxis
-                  stroke="#666"
+                  stroke={c.textHint}
                   tick={{ fontSize: 11 }}
                   domain={yDomain}
                   tickFormatter={(v: number) => formatNumber(v)}
                   width={72}
                 />
                 <RTip
-                  contentStyle={{ background: '#1a1a1a', border: '1px solid #333', fontSize: 12 }}
+                  contentStyle={{ background: isDark ? '#1a1a1a' : '#ffffff', border: `1px solid ${c.border}`, fontSize: 12 }}
                   labelFormatter={(v) => new Date(Number(v)).toLocaleString()}
                   formatter={(v, name) => {
                     const label = chart.series.find((s) => s.key === name)?.label ?? String(name)

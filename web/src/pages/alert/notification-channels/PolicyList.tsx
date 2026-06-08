@@ -10,6 +10,7 @@ import { ContactGroupPicker } from './ContactGroupPicker'
 import { SEV_COLOR } from './sevColor'
 import { SevTag } from './SevTag'
 import { Toolbar } from './Toolbar'
+import { useTheme } from '../../../hooks/useTheme'
 
 const { Text } = Typography
 const { Option } = Select
@@ -17,6 +18,7 @@ const { Option } = Select
 export function PolicyList() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<NotificationPolicy | null>(null)
@@ -62,8 +64,8 @@ export function PolicyList() {
       dataIndex: 'name',
       render: (n: string, row: NotificationPolicy) => (
         <div>
-          <a style={{ color: '#1677ff', fontWeight: 500, fontSize: 13 }}>{n}</a>
-          <div style={{ color: '#444', fontSize: 11, marginTop: 2, fontFamily: 'monospace' }}>{row.id}</div>
+          <span style={{ color: c.textBody, fontWeight: 500, fontSize: 13 }}>{n}</span>
+          <div style={{ color: c.textTertiary, fontSize: 11, marginTop: 2, fontFamily: 'monospace' }}>{row.id}</div>
         </div>
       ),
     },
@@ -78,14 +80,14 @@ export function PolicyList() {
     {
       title: '描述',
       dataIndex: 'description',
-      render: (d: string) => <Text style={{ color: '#888', fontSize: 12 }}>{d || '—'}</Text>,
+      render: (d: string) => <Text style={{ color: c.textHint, fontSize: 12 }}>{d || '—'}</Text>,
     },
     {
       title: '已关联规则数',
       dataIndex: 'linked_rules',
       width: 120,
       render: (n: number) => (
-        <span style={{ color: n > 0 ? '#e8e8e8' : '#444', fontWeight: n > 0 ? 600 : 400 }}>{n}</span>
+        <span style={{ color: n > 0 ? c.textBody : c.textTertiary, fontWeight: n > 0 ? 600 : 400 }}>{n}</span>
       ),
     },
     {
@@ -93,7 +95,7 @@ export function PolicyList() {
       dataIndex: 'created_at',
       width: 160,
       render: (t: string) => (
-        <span style={{ color: '#666', fontSize: 12 }}>{dayjs(t).format('YYYY-MM-DD HH:mm:ss')}</span>
+        <span style={{ color: c.textHint, fontSize: 12 }}>{dayjs(t).format('YYYY-MM-DD HH:mm:ss')}</span>
       ),
     },
     {
@@ -132,9 +134,9 @@ export function PolicyList() {
         size={700}
         onClose={() => { setOpen(false); setEditing(null) }}
         styles={{
-          header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-          body: { background: '#111111', padding: '20px 24px' },
-          footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+          header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+          body: { background: c.bgSurface, padding: '20px 24px' },
+          footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
         }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

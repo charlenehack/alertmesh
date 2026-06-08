@@ -1,14 +1,9 @@
 package label
 
 const (
-	IncidentModuleName = "告警管理"
+	IncidentModuleName = "告警事件"
 
-	IncidentList    = "incidentList"
-	IncidentDetail  = "incidentDetail"
-	IncidentAck     = "incidentAck"
-	IncidentAssign  = "incidentAssign"
-	IncidentComment = "incidentComment"
-	IncidentResolve = "incidentResolve"
-	IncidentClose   = "incidentClose"
-	IncidentMerge   = "incidentMerge"
+	// IncidentAccess 控制告警事件菜单及其所有操作（列表、详情、确认、解决、关闭）
+	// 以及 AI 分析功能（AI分析随告警事件权限）
+	IncidentAccess = "incidentAccess"
 )

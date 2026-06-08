@@ -272,3 +272,26 @@ func EnqueueTask(db *gorm.DB, incidentID string) error {
 	db.Exec("SELECT pg_notify('ai_task_ready', ?)", task.ID)
 	return nil
 }
+
+// ResetStaleTasks resets any tasks stuck in 'running' state back to 'pending'.
+// Called at startup to recover from unclean shutdowns.
+func ResetStaleTasks(db *gorm.DB) {
+	result := db.Model(&model.AITask{}).
+		Where("status = ?", model.AIStatusRunning).
+		Updates(map[string]interface{}{"status": model.AIStatusPending, "started_at": nil})
+	if result.Error != nil {
+		log.Warn().Err(result.Error).Msg("reset stale ai tasks failed")
+		return
+	}
+	if result.RowsAffected > 0 {
+		log.Info().Int64("count", result.RowsAffected).Msg("reset stale running ai tasks to pending")
+		// 同步把对应 incident 的 ai_status 也重置
+		db.Exec(`
+			UPDATE incidents i
+			SET ai_status = 'pending'
+			FROM ai_tasks t
+			WHERE t.incident_id = i.id AND t.status = 'pending'
+			  AND i.ai_status = 'running'
+		`)
+	}
+}

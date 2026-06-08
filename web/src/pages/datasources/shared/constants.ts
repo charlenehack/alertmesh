@@ -46,6 +46,8 @@ export const AI_SUPPORTED_KINDS: ReadonlySet<DataSourceKind> = new Set<DataSourc
   'kafka',
   'opensearch',
   'elastic',
+  'prometheus',
+  'k8s',
 ])
 
 export function isAIEligibleKind(kind: DataSourceKind | undefined): boolean {

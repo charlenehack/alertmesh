@@ -1,0 +1,49 @@
+---
+# Ansible Playbook: 下发 Nginx 配置文件
+# 由 Cloud-Hub 自动生成，请勿手动修改。
+# 变量由后端在执行时通过 --extra-vars 注入：
+#   hosts_list   - 目标主机 IP，逗号分隔，如 "10.0.0.1,10.0.0.2"
+#   remote_user  - 远程登录用户（默认 root）
+#   src_files    - 源文件列表（JSON 数组），每项包含 src / dest 字段
+#   nginx_cmd    - nginx 可执行文件路径（默认 nginx）
+#   backup_ts    - 备份时间戳（如 20260125_153000），由后端注入
+
+- name: 下发 Nginx 配置文件并重载
+  hosts: "{{ hosts_list }}"
+  gather_facts: false
+  become: false
+  vars:
+    # 用 nginx_cmd 而非 nginx_bin ，避免和外部传入的同名变量递归引用
+    nginx_cmd: "{{ nginx_bin | default('nginx') }}"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+
+  tasks:
+    - name: 确认目标主机可达
+      ping:
+
+    - name: 备份目标服务器上的当前配置（文件不存在则跳过）
+      command: "cp {{ item.dest }} {{ item.dest }}.bak.{{ backup_ts }}"
+      args:
+        removes: "{{ item.dest }}"
+      loop: "{{ src_files | from_json }}"
+      ignore_errors: true
+
+    - name: 下发配置文件
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: yzj
+        group: yzj
+        mode: '0644'
+      loop: "{{ src_files | from_json }}"
+
+    - name: 检查 Nginx 配置语法
+      command: "{{ nginx_cmd }} -t"
+      become: true
+      register: nginx_test
+      failed_when: nginx_test.rc != 0
+
+    - name: 重载 Nginx
+      command: "{{ nginx_cmd }} -s reload"
+      become: true
+      when: nginx_test.rc == 0

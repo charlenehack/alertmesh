@@ -23,7 +23,7 @@ func (h *incidentHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/incidents").
 		To(h.list).
 		Doc("List incidents").
-		Metadata(label.MetaIdentity, label.IncidentList).
+		Metadata(label.MetaIdentity, label.IncidentAccess).
 		Metadata(label.MetaModule, label.IncidentModuleName).
 		Metadata(label.MetaKind, "Incident").
 		Metadata(label.MetaAuth, label.Enable).
@@ -32,7 +32,7 @@ func (h *incidentHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/incidents/{id}").
 		To(h.detail).
 		Doc("Get incident detail").
-		Metadata(label.MetaIdentity, label.IncidentDetail).
+		Metadata(label.MetaIdentity, label.IncidentAccess).
 		Metadata(label.MetaModule, label.IncidentModuleName).
 		Metadata(label.MetaKind, "Incident").
 		Metadata(label.MetaAuth, label.Enable).
@@ -41,7 +41,7 @@ func (h *incidentHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.POST("/incidents/{id}/ack").
 		To(h.ack).
 		Doc("Acknowledge incident").
-		Metadata(label.MetaIdentity, label.IncidentAck).
+		Metadata(label.MetaIdentity, label.IncidentAccess).
 		Metadata(label.MetaModule, label.IncidentModuleName).
 		Metadata(label.MetaKind, "Incident").
 		Metadata(label.MetaAuth, label.Enable).
@@ -50,7 +50,7 @@ func (h *incidentHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.POST("/incidents/{id}/resolve").
 		To(h.resolve).
 		Doc("Resolve incident").
-		Metadata(label.MetaIdentity, label.IncidentResolve).
+		Metadata(label.MetaIdentity, label.IncidentAccess).
 		Metadata(label.MetaModule, label.IncidentModuleName).
 		Metadata(label.MetaKind, "Incident").
 		Metadata(label.MetaAuth, label.Enable).
@@ -59,7 +59,7 @@ func (h *incidentHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.POST("/incidents/{id}/close").
 		To(h.close).
 		Doc("Close incident").
-		Metadata(label.MetaIdentity, label.IncidentClose).
+		Metadata(label.MetaIdentity, label.IncidentAccess).
 		Metadata(label.MetaModule, label.IncidentModuleName).
 		Metadata(label.MetaKind, "Incident").
 		Metadata(label.MetaAuth, label.Enable).

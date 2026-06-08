@@ -1,0 +1,25 @@
+---
+# Ansible Playbook: 从 Nginx 服务器同步配置文件到发布机
+# 由 Cloud-Hub 自动生成，请勿手动修改。
+# 变量由后端在执行时通过 --extra-vars 注入：
+#   hosts_list   - 源主机 IP（取第一台），逗号分隔
+#   dest_files   - 要同步的文件列表（JSON 数组），每项包含 remote_path 字段
+#   local_dir    - 发布机上存放同步结果的目录（work 目录绝对路径）
+
+- name: 从 Nginx 服务器同步配置文件到发布机
+  hosts: "{{ hosts_list }}"
+  gather_facts: false
+  become: false
+  vars:
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+
+  tasks:
+    - name: 确认目标主机可达
+      ping:
+
+    - name: 同步配置文件到发布机
+      fetch:
+        src: "{{ item.remote_path }}"
+        dest: "{{ local_dir }}"
+        flat: false
+      loop: "{{ dest_files | from_json }}"

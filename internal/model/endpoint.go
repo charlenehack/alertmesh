@@ -9,4 +9,12 @@ type Endpoint struct {
 	Remark   string `gorm:"type:varchar(255)"                             json:"remark"`
 }
 
+// RoleEndpoint is the join-table row for Role ↔ Endpoint (many2many).
+type RoleEndpoint struct {
+	RoleID           uint   `gorm:"column:role_id"`
+	EndpointIdentity string `gorm:"column:endpoint_identity"`
+}
+
+func (RoleEndpoint) TableName() string { return "role_endpoints" }
+
 func (Endpoint) TableName() string { return "endpoints" }

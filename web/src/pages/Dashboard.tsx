@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { getIncidents } from '../api/incidents'
 import { useRealtime } from '../hooks/useRealtime'
+import { useTheme } from '../hooks/useTheme'
 import SeverityBadge from '../components/SeverityBadge'
 import StatusBadge from '../components/StatusBadge'
 import type { Incident, Severity, IncidentStatus } from '../types'
@@ -16,17 +17,18 @@ interface StatCardProps {
   accent?: string
 }
 
-function StatCard({ label, value, accent = '#ffffff' }: StatCardProps) {
+function StatCard({ label, value, accent = '#1677ff' }: StatCardProps) {
+  const { c } = useTheme()
   return (
     <Card
       style={{
-        background: '#111111',
-        border: '1px solid #1e1e1e',
+        background: c.bgSurface,
+        border: `1px solid ${c.borderSubtle}`,
         borderRadius: 8,
       }}
       styles={{ body: { padding: '20px 24px' } }}
     >
-      <div style={{ color: '#555555', fontSize: 12, marginBottom: 8, letterSpacing: '0.5px' }}>
+      <div style={{ color: c.textTertiary, fontSize: 12, marginBottom: 8, letterSpacing: '0.5px' }}>
         {label.toUpperCase()}
       </div>
       <div style={{ fontSize: 32, fontWeight: 700, color: accent, lineHeight: 1 }}>
@@ -39,16 +41,13 @@ function StatCard({ label, value, accent = '#ffffff' }: StatCardProps) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { c } = useTheme()
 
   const { data, isLoading } = useQuery({
     queryKey: ['incidents-all'],
     queryFn: () => getIncidents(0, 200),
   })
 
-  // Push-driven refresh in place of the old 30s refetchInterval — both
-  // the stat counters and the "活跃事件" table share the same query so
-  // a single invalidation rebuilds the entire dashboard from one REST
-  // call after each lifecycle event.
   useRealtime(['incidents'], () => {
     qc.invalidateQueries({ queryKey: ['incidents-all'] })
   })
@@ -82,12 +81,12 @@ export default function Dashboard() {
       title: '事件标题',
       dataIndex: 'title',
       render: (t: string, row: Incident) => (
-        <a
+        <span
           onClick={() => navigate(`/incidents/${row.id}`)}
-          style={{ color: '#e8e8e8', fontWeight: 500 }}
+          style={{ color: c.textBody, fontWeight: 500, cursor: 'pointer' }}
         >
           {t}
-        </a>
+        </span>
       ),
     },
     {
@@ -103,9 +102,9 @@ export default function Dashboard() {
       render: (s: string) => (
         <Tag
           style={{
-            background: '#1a1a1a',
-            border: '1px solid #2a2a2a',
-            color: '#888888',
+            background: c.bgElevated,
+            border: `1px solid ${c.border}`,
+            color: c.textSecondary,
             fontSize: 11,
             borderRadius: 4,
           }}
@@ -119,7 +118,7 @@ export default function Dashboard() {
       dataIndex: 'opened_at',
       width: 140,
       render: (t: string) => (
-        <Text style={{ color: '#555555', fontSize: 12 }}>
+        <Text style={{ color: c.textTertiary, fontSize: 12 }}>
           {dayjs(t).fromNow()}
         </Text>
       ),
@@ -129,10 +128,10 @@ export default function Dashboard() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <Title level={5} style={{ color: '#ffffff', margin: 0, fontWeight: 600 }}>
+        <Title level={5} style={{ color: c.textBody, margin: 0, fontWeight: 600 }}>
           概览
         </Title>
-        <Text style={{ color: '#444444', fontSize: 12 }}>
+        <Text style={{ color: c.textTertiary, fontSize: 12 }}>
           {dayjs().format('YYYY年MM月DD日')}
         </Text>
       </div>
@@ -154,20 +153,20 @@ export default function Dashboard() {
 
       <Card
         style={{
-          background: '#111111',
-          border: '1px solid #1e1e1e',
+          background: c.bgSurface,
+          border: `1px solid ${c.borderSubtle}`,
           borderRadius: 8,
         }}
         styles={{ body: { padding: 0 } }}
         title={
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ color: '#e8e8e8', fontSize: 13, fontWeight: 500 }}>活跃事件</span>
-            <a
+            <span style={{ color: c.textBody, fontSize: 13, fontWeight: 500 }}>活跃事件</span>
+            <span
               onClick={() => navigate('/incidents')}
-              style={{ color: '#444444', fontSize: 12 }}
+              style={{ color: c.textTertiary, fontSize: 12, cursor: 'pointer' }}
             >
               全部 →
-            </a>
+            </span>
           </div>
         }
       >
@@ -176,7 +175,7 @@ export default function Dashboard() {
             <Spin />
           </div>
         ) : recentOpen.length === 0 ? (
-          <Empty description={<span style={{ color: '#444444' }}>暂无活跃事件</span>} style={{ padding: 48 }} />
+          <Empty description={<span style={{ color: c.textTertiary }}>暂无活跃事件</span>} style={{ padding: 48 }} />
         ) : (
           <Table
             dataSource={recentOpen}

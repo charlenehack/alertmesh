@@ -5,6 +5,13 @@ import { getPublicKey } from './system'
 // MUST match `auth.ENCPrefix` in internal/auth/wire_crypto.go.
 const ENC_PREFIX = 'ENC:'
 
+// Prefix for hybrid (AES-GCM + RSA) encrypted values.
+// MUST match `auth.HYBPrefix` in internal/auth/wire_crypto.go.
+const HYB_PREFIX = 'HYB:'
+
+// RSA-2048/PKCS1v15 can encrypt at most (keyBits/8 - 11) bytes.
+const RSA_MAX_PLAIN = 245
+
 // Sentinel value returned by the server for masked secret fields in list /
 // detail responses.  Forms re-submit it unchanged when the user did not
 // touch the field — must NOT be re-encrypted, the server treats it as
@@ -24,20 +31,62 @@ async function loadPublicKey(): Promise<string> {
   return cachedKeyPromise
 }
 
-// encryptSecret RSA-encrypts a single sensitive field for transit.
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// ─── Chunked RSA encryption ──────────────────────────────────────────────────
+//
+// For values that exceed the RSA-2048/PKCS1v15 plaintext limit (245 bytes),
+// we split the plaintext into chunks and RSA-encrypt each chunk individually.
+// Wire format: "HYB:" + base64(rsa_chunk1) + "." + base64(rsa_chunk2) + …
+//
+// This avoids the Web Crypto API (crypto.subtle) which is unavailable in
+// non-secure contexts (plain HTTP). JSEncrypt works everywhere.
+
+function chunkedRsaEncrypt(
+  plaintext: string,
+  rsaPublicKeyPem: string,
+): string {
+  const rsa = new JSEncrypt()
+  rsa.setPublicKey(rsaPublicKeyPem)
+
+  const chunks: string[] = []
+  for (let i = 0; i < plaintext.length; i += RSA_MAX_PLAIN) {
+    const slice = plaintext.slice(i, i + RSA_MAX_PLAIN)
+    const encrypted = rsa.encrypt(slice)
+    if (!encrypted) {
+      throw new Error(`RSA encryption failed on chunk ${Math.floor(i / RSA_MAX_PLAIN)}`)
+    }
+    chunks.push(encrypted)
+  }
+
+  return HYB_PREFIX + chunks.join('.')
+}
+
+// encryptSecret encrypts a single sensitive field for transit.
+//
+// For values ≤ 245 bytes it uses direct RSA encryption ("ENC:" prefix);
+// for longer values it uses hybrid AES-GCM + RSA ("HYB:" prefix).
+//
 // Returns the value unchanged when:
 //   - it is empty / undefined
 //   - it is the masked placeholder (server keeps the existing DB value)
-//   - it is already prefixed with ENC: (already encrypted)
-// Throws if the public key cannot be loaded or jsencrypt fails.
+//   - it is already prefixed with ENC: or HYB: (already encrypted)
+// Throws if the public key cannot be loaded or encryption fails.
 export async function encryptSecret(
   value: string | undefined | null,
 ): Promise<string> {
   if (!value) return ''
   if (value === MASK) return MASK
-  if (value.startsWith(ENC_PREFIX)) return value
+  if (value.startsWith(ENC_PREFIX) || value.startsWith(HYB_PREFIX)) return value
 
   const publicKey = await loadPublicKey()
+
+  // Use chunked RSA encryption for values that exceed the RSA plaintext limit.
+  if (value.length > RSA_MAX_PLAIN) {
+    return chunkedRsaEncrypt(value, publicKey)
+  }
+
+  // Direct RSA encryption for short values (passwords, short tokens).
   const encryptor = new JSEncrypt()
   encryptor.setPublicKey(publicKey)
   const cipher = encryptor.encrypt(value)

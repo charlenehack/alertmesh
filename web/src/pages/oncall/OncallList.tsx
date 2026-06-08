@@ -3,6 +3,7 @@ import { Table, Card, Tag, Typography } from 'antd'
 import { CalendarOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { getOncall } from '../../api/system'
+import { useTheme } from '../../hooks/useTheme'
 import type { OncallSchedule } from '../../types'
 
 const { Title } = Typography
@@ -12,7 +13,7 @@ export default function OncallList() {
     queryKey: ['oncall'],
     queryFn: getOncall,
   })
-
+  const { c } = useTheme()
   const schedules: OncallSchedule[] = data ?? []
 
   const now = dayjs()
@@ -48,13 +49,13 @@ export default function OncallList() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-        <CalendarOutlined style={{ fontSize: 20, color: '#1677ff' }} />
-        <Title level={4} style={{ margin: 0, color: '#1a1a2e' }}>
+        <CalendarOutlined style={{ fontSize: 20, color: c.primary }} />
+        <Title level={4} style={{ margin: 0, color: c.textBody }}>
           值班管理
         </Title>
       </div>
 
-      <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+      <Card style={{ borderRadius: 12, border: `1px solid ${c.border}`, boxShadow: 'none', background: c.bgSurface }}>
         <Table
           dataSource={schedules}
           columns={columns}

@@ -8,6 +8,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, MergeCellsOutlined } from '
 import { getAggregations, createAggregation, updateAggregation, deleteAggregation } from '../../api/alert'
 import { PageHeader } from '../../components/PageHeader'
 import { SurfaceCard } from '../../components/SurfaceCard'
+import { useTheme } from '../../hooks/useTheme'
 import type { AggregationPolicy } from '../../types'
 
 const { Text } = Typography
@@ -16,6 +17,7 @@ const { TextArea } = Input
 export default function AggregationPolicies() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<AggregationPolicy | null>(null)
   const [form] = Form.useForm()
@@ -62,26 +64,26 @@ export default function AggregationPolicies() {
       title: '分组字段',
       dataIndex: 'group_by',
       render: (g: string[]) => (g || []).map((k: string) => (
-        <span key={k} style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 4, padding: '1px 6px', marginRight: 4, fontSize: 11, color: '#ccc' }}>{k}</span>
+        <span key={k} style={{ background: c.bgElevated, border: `1px solid ${c.border}`, borderRadius: 4, padding: '1px 6px', marginRight: 4, fontSize: 11, color: c.textHint }}>{k}</span>
       )),
     },
     {
       title: '等待(s)',
       dataIndex: 'group_wait',
       width: 80,
-      render: (v: number) => <span style={{ color: '#888', fontSize: 12 }}>{v}s</span>,
+      render: (v: number) => <span style={{ color: c.textSecondary, fontSize: 12 }}>{v}s</span>,
     },
     {
       title: '聚合间隔(s)',
       dataIndex: 'group_interval',
       width: 100,
-      render: (v: number) => <span style={{ color: '#888', fontSize: 12 }}>{v}s</span>,
+      render: (v: number) => <span style={{ color: c.textSecondary, fontSize: 12 }}>{v}s</span>,
     },
     {
       title: '重复间隔(s)',
       dataIndex: 'repeat_interval',
       width: 100,
-      render: (v: number) => <span style={{ color: '#888', fontSize: 12 }}>{v}s</span>,
+      render: (v: number) => <span style={{ color: c.textSecondary, fontSize: 12 }}>{v}s</span>,
     },
     {
       title: '启用',
@@ -127,9 +129,9 @@ export default function AggregationPolicies() {
         size={580}
         onClose={() => { setOpen(false); setEditing(null) }}
         styles={{
-          header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-          body: { background: '#111111', padding: '20px 24px' },
-          footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+          header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+          body: { background: c.bgSurface, padding: '20px 24px' },
+          footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
         }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

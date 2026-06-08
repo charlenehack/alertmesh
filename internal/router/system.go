@@ -1,6 +1,8 @@
 package router
 
 import (
+	"golang.org/x/crypto/bcrypt"
+
 	restful "github.com/emicklei/go-restful/v3"
 	"gorm.io/gorm"
 
@@ -41,9 +43,65 @@ func (h *systemHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/users").
 		To(h.listUsers).
 		Doc("List users").
-		Metadata(label.MetaIdentity, label.UserRead).
+		Metadata(label.MetaIdentity, label.SysAccess).
 		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "User").
+		Metadata(label.MetaAuth, label.Enable).
+		Metadata(label.MetaACL, label.Enable))
+
+	ws.Route(ws.POST("/users").
+		To(h.createUser).
+		Doc("Create a local user").
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
+		Metadata(label.MetaKind, "User").
+		Metadata(label.MetaAuth, label.Enable).
+		Metadata(label.MetaACL, label.Enable))
+
+	ws.Route(ws.PUT("/users/{id}").
+		To(h.updateUser).
+		Doc("Update user info or roles").
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
+		Metadata(label.MetaKind, "User").
+		Metadata(label.MetaAuth, label.Enable).
+		Metadata(label.MetaACL, label.Enable))
+
+	ws.Route(ws.DELETE("/users/{id}").
+		To(h.deleteUser).
+		Doc("Delete a user").
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
+		Metadata(label.MetaKind, "User").
+		Metadata(label.MetaAuth, label.Enable).
+		Metadata(label.MetaACL, label.Enable))
+
+	// Role management
+	ws.Route(ws.GET("/roles").
+		To(h.listRoles).
+		Doc("List roles with endpoints").
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
+		Metadata(label.MetaKind, "Role").
+		Metadata(label.MetaAuth, label.Enable).
+		Metadata(label.MetaACL, label.Enable))
+
+	ws.Route(ws.PUT("/roles/{id}/endpoints").
+		To(h.updateRoleEndpoints).
+		Doc("Replace the permission endpoints bound to a role").
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
+		Metadata(label.MetaKind, "Role").
+		Metadata(label.MetaAuth, label.Enable).
+		Metadata(label.MetaACL, label.Enable))
+
+	// Endpoint list (for role assignment UI)
+	ws.Route(ws.GET("/endpoints").
+		To(h.listEndpoints).
+		Doc("List all registered permission endpoints").
+		Metadata(label.MetaIdentity, label.SysAccess).
+		Metadata(label.MetaModule, label.SysModuleName).
+		Metadata(label.MetaKind, "Endpoint").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
 
@@ -51,7 +109,7 @@ func (h *systemHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/configs").
 		To(h.listConfigs).
 		Doc("List non-secret system configs").
-		Metadata(label.MetaIdentity, label.ConfigRead).
+		Metadata(label.MetaIdentity, label.SysAccess).
 		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "Config").
 		Metadata(label.MetaAuth, label.Enable).
@@ -60,7 +118,7 @@ func (h *systemHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.PUT("/configs").
 		To(h.updateConfig).
 		Doc("Update a system config value").
-		Metadata(label.MetaIdentity, label.ConfigWrite).
+		Metadata(label.MetaIdentity, label.SysAccess).
 		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "Config").
 		Metadata(label.MetaAuth, label.Enable).
@@ -70,7 +128,7 @@ func (h *systemHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/configs/auth").
 		To(h.getAuthConfig).
 		Doc("Get current authentication mode").
-		Metadata(label.MetaIdentity, label.ConfigRead).
+		Metadata(label.MetaIdentity, label.SysAccess).
 		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "Config").
 		Metadata(label.MetaAuth, label.Enable).
@@ -79,7 +137,7 @@ func (h *systemHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.PUT("/configs/auth").
 		To(h.setAuthConfig).
 		Doc("Set authentication mode and provider config (ldap/oidc config is encrypted at rest)").
-		Metadata(label.MetaIdentity, label.ConfigWrite).
+		Metadata(label.MetaIdentity, label.SysAccess).
 		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "Config").
 		Metadata(label.MetaAuth, label.Enable).
@@ -89,7 +147,7 @@ func (h *systemHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/oncall").
 		To(h.listOncall).
 		Doc("List oncall schedules").
-		Metadata(label.MetaIdentity, label.OncallRead).
+		Metadata(label.MetaIdentity, label.SysAccess).
 		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "Oncall").
 		Metadata(label.MetaAuth, label.Enable).
@@ -99,7 +157,7 @@ func (h *systemHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/reports/overview").
 		To(h.reportOverview).
 		Doc("Get overview report").
-		Metadata(label.MetaIdentity, label.ReportRead).
+		Metadata(label.MetaIdentity, label.SysAccess).
 		Metadata(label.MetaModule, label.SysModuleName).
 		Metadata(label.MetaKind, "Report").
 		Metadata(label.MetaAuth, label.Enable).
@@ -232,6 +290,151 @@ func (h *systemHandler) listUsers(req *restful.Request, resp *restful.Response) 
 		safe = append(safe, toSafeUser(u))
 	}
 	httputil.Success(resp, safe)
+}
+
+type createUserReq struct {
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	RoleIDs     []uint `json:"role_ids"`
+}
+
+func (h *systemHandler) createUser(req *restful.Request, resp *restful.Response) {
+	var body createUserReq
+	if err := req.ReadEntity(&body); err != nil {
+		httputil.BadRequest(resp, "invalid request body")
+		return
+	}
+	if body.Username == "" || body.Password == "" {
+		httputil.BadRequest(resp, "username and password are required")
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	if err != nil {
+		httputil.InternalError(resp, "failed to hash password")
+		return
+	}
+	u := model.User{
+		Username:     body.Username,
+		DisplayName:  body.DisplayName,
+		Email:        body.Email,
+		PasswordHash: string(hash),
+		Source:       "local",
+		IsActive:     true,
+	}
+	if res := h.db.WithContext(req.Request.Context()).Create(&u); res.Error != nil {
+		httputil.InternalError(resp, "failed to create user: "+res.Error.Error())
+		return
+	}
+	if len(body.RoleIDs) > 0 {
+		var roles []*model.Role
+		h.db.WithContext(req.Request.Context()).Where("id IN ?", body.RoleIDs).Find(&roles)
+		_ = h.db.WithContext(req.Request.Context()).Model(&u).Association("Roles").Replace(roles)
+	}
+	h.db.WithContext(req.Request.Context()).Preload("Roles").First(&u, "id = ?", u.ID)
+	httputil.Success(resp, toSafeUser(u))
+}
+
+type updateUserReq struct {
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	IsActive    *bool  `json:"is_active"`
+	RoleIDs     []uint `json:"role_ids"`
+}
+
+func (h *systemHandler) updateUser(req *restful.Request, resp *restful.Response) {
+	id := req.PathParameter("id")
+	var u model.User
+	if res := h.db.WithContext(req.Request.Context()).Preload("Roles").First(&u, "id = ?", id); res.Error != nil {
+		httputil.NotFound(resp)
+		return
+	}
+	var body updateUserReq
+	if err := req.ReadEntity(&body); err != nil {
+		httputil.BadRequest(resp, "invalid request body")
+		return
+	}
+	if body.DisplayName != "" {
+		u.DisplayName = body.DisplayName
+	}
+	if body.Email != "" {
+		u.Email = body.Email
+	}
+	if body.IsActive != nil {
+		u.IsActive = *body.IsActive
+	}
+	if body.Password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+		if err != nil {
+			httputil.InternalError(resp, "failed to hash password")
+			return
+		}
+		u.PasswordHash = string(hash)
+	}
+	h.db.WithContext(req.Request.Context()).Save(&u)
+	if body.RoleIDs != nil {
+		var roles []*model.Role
+		h.db.WithContext(req.Request.Context()).Where("id IN ?", body.RoleIDs).Find(&roles)
+		_ = h.db.WithContext(req.Request.Context()).Model(&u).Association("Roles").Replace(roles)
+	}
+	h.db.WithContext(req.Request.Context()).Preload("Roles").First(&u, "id = ?", u.ID)
+	httputil.Success(resp, toSafeUser(u))
+}
+
+func (h *systemHandler) deleteUser(req *restful.Request, resp *restful.Response) {
+	id := req.PathParameter("id")
+	var u model.User
+	if res := h.db.WithContext(req.Request.Context()).First(&u, "id = ?", id); res.Error != nil {
+		httputil.NotFound(resp)
+		return
+	}
+	if u.Username == "admin" {
+		httputil.BadRequest(resp, "cannot delete the built-in admin account")
+		return
+	}
+	_ = h.db.WithContext(req.Request.Context()).Model(&u).Association("Roles").Clear()
+	h.db.WithContext(req.Request.Context()).Delete(&u)
+	httputil.Success(resp, map[string]string{"id": id})
+}
+
+func (h *systemHandler) listRoles(req *restful.Request, resp *restful.Response) {
+	var roles []model.Role
+	h.db.WithContext(req.Request.Context()).Preload("Endpoints").Find(&roles)
+	httputil.Success(resp, roles)
+}
+
+func (h *systemHandler) updateRoleEndpoints(req *restful.Request, resp *restful.Response) {
+	idStr := req.PathParameter("id")
+	var role model.Role
+	if res := h.db.WithContext(req.Request.Context()).First(&role, "id = ?", idStr); res.Error != nil {
+		httputil.NotFound(resp)
+		return
+	}
+	var body struct {
+		Identities []string `json:"identities"` // list of endpoint identity strings
+	}
+	if err := req.ReadEntity(&body); err != nil {
+		httputil.BadRequest(resp, "invalid request body")
+		return
+	}
+	var endpoints []*model.Endpoint
+	if len(body.Identities) > 0 {
+		h.db.WithContext(req.Request.Context()).Where("identity IN ?", body.Identities).Find(&endpoints)
+	}
+	if err := h.db.WithContext(req.Request.Context()).Model(&role).Association("Endpoints").Replace(endpoints); err != nil {
+		httputil.InternalError(resp, "failed to update role endpoints")
+		return
+	}
+	h.db.WithContext(req.Request.Context()).Preload("Endpoints").First(&role, "id = ?", role.ID)
+	httputil.Success(resp, role)
+}
+
+func (h *systemHandler) listEndpoints(req *restful.Request, resp *restful.Response) {
+	var endpoints []model.Endpoint
+	h.db.WithContext(req.Request.Context()).Find(&endpoints)
+	httputil.Success(resp, endpoints)
 }
 
 // ─── generic config ──────────────────────────────────────────────────────────

@@ -4,7 +4,6 @@ import (
 	"github.com/mikespook/gorbac"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	restful "github.com/emicklei/go-restful/v3"
 
@@ -26,15 +25,9 @@ func SetRBAC(rbac *gorbac.RBAC, db *gorm.DB) error {
 	for _, role := range roles {
 		stdRole := gorbac.NewStdRole(role.Name)
 		for _, ep := range role.Endpoints {
-			// gorbac StdRole.Assign only fails on a nil permission, which we
-			// never construct — the Permissioner always wraps a non-empty
-			// "METHOD:/path" string.  Discarding the error keeps the loop tight.
 			_ = stdRole.Assign(gorbac.NewStdPermission(ep.Method + ":" + ep.Path))
 		}
 		if err := rbac.Add(stdRole); err != nil {
-			// Role may already exist from a previous load, remove and re-add.
-			// Both calls only fail with "role missing"/"role already exists",
-			// which we are explicitly trying to overwrite — log and continue.
 			if rmErr := rbac.Remove(role.Name); rmErr != nil {
 				log.Warn().Err(rmErr).Str("role", role.Name).Msg("rbac remove during reload")
 			}
@@ -57,19 +50,28 @@ func SetRBAC(rbac *gorbac.RBAC, db *gorm.DB) error {
 }
 
 // StoreRouter synchronises go-restful routes marked with acl=true into the endpoints table.
+// Only removes stale endpoints (routes that no longer exist) and preserves existing role-endpoint
+// associations for endpoints that still exist. New endpoints are added without touching existing
+// role permissions.
 func StoreRouter(container *restful.Container, db *gorm.DB) {
 	var endpoints []model.Endpoint
+	seen := make(map[string]bool)
 	for _, ws := range container.RegisteredWebServices() {
 		for _, route := range ws.Routes() {
 			if !isACLEnabled(route.Metadata) {
 				continue
 			}
+			identity := metaString(route.Metadata, "identity")
+			if identity == "" || seen[identity] {
+				continue
+			}
+			seen[identity] = true
 			endpoints = append(endpoints, model.Endpoint{
 				Path:     route.Path,
 				Method:   route.Method,
 				Module:   metaString(route.Metadata, "module"),
 				Kind:     metaString(route.Metadata, "kind"),
-				Identity: metaString(route.Metadata, "identity"),
+				Identity: identity,
 				Remark:   route.Doc,
 			})
 		}
@@ -77,8 +79,41 @@ func StoreRouter(container *restful.Container, db *gorm.DB) {
 	if len(endpoints) == 0 {
 		return
 	}
-	db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&endpoints)
-	log.Info().Int("endpoints", len(endpoints)).Msg("router endpoints synced")
+
+	// Build identity set of current routes
+	newIdents := make(map[string]bool, len(endpoints))
+	for _, ep := range endpoints {
+		newIdents[ep.Identity] = true
+	}
+
+	// Find stale endpoints (exist in DB but no longer in routes) and remove them
+	var staleIdents []string
+	if err := db.Model(&model.Endpoint{}).Pluck("identity", &staleIdents).Error; err != nil {
+		log.Warn().Err(err).Msg("pluck existing identities failed")
+	}
+	for _, ident := range staleIdents {
+		if !newIdents[ident] {
+			// Remove role_endpoints referencing stale endpoint first (FK constraint)
+			if err := db.Where("endpoint_identity = ?", ident).Delete(&model.RoleEndpoint{}).Error; err != nil {
+				log.Warn().Err(err).Str("identity", ident).Msg("remove stale role_endpoint failed")
+			}
+			if err := db.Where("identity = ?", ident).Delete(&model.Endpoint{}).Error; err != nil {
+				log.Warn().Err(err).Str("identity", ident).Msg("remove stale endpoint failed")
+			}
+		}
+	}
+
+	// Upsert: only create new endpoints, update existing ones' path/method/module/kind/remark
+	for _, ep := range endpoints {
+		result := db.Where("identity = ?", ep.Identity).Assign(map[string]any{
+			"path": ep.Path, "method": ep.Method, "module": ep.Module, "kind": ep.Kind, "remark": ep.Remark,
+		}).FirstOrCreate(&ep)
+		if result.Error != nil {
+			log.Warn().Err(result.Error).Str("identity", ep.Identity).Msg("upsert endpoint failed")
+		}
+	}
+
+	log.Info().Int("endpoints", len(endpoints)).Msg("router endpoints synced (preserved role permissions)")
 }
 
 func isACLEnabled(meta map[string]interface{}) bool {

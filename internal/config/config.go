@@ -44,6 +44,12 @@ type Config struct {
 	RedisAddr     string `envconfig:"REDIS_ADDR"     default:"localhost:6379"`
 	RedisPassword string `envconfig:"REDIS_PASSWORD"`
 
+	// Nginx config service
+	NginxWorkDir      string `envconfig:"NGINX_WORK_DIR"       default:"./work"` // work directory for Nginx config files
+	AnsibleUser       string `envconfig:"ANSIBLE_USER"         default:"root"`   // SSH user for Ansible
+	AnsiblePassword   string `envconfig:"ANSIBLE_PASSWORD"`                      // SSH password for Ansible (optional, prefer key auth)
+	AnsibleNginxBin   string `envconfig:"ANSIBLE_NGINX_BIN"`                     // nginx binary path on target servers (optional, default: nginx)
+
 	// 注：Kafka consumer 不接受任何 env 控制。Brokers / topic / filter /
 	// mapping / SASL / TLS / rate-limit 全部按行存在 data_sources 表中，由
 	// KafkaManager 通过 pg_notify('data_source_event') 热加载——表里有行就

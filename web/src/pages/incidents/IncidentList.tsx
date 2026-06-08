@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Table, Card, Tag, Button, Space, Input, Select, Typography, Tooltip
+  Table, Tag, Button, Input, Select, Typography, Tooltip
 } from 'antd'
+import { getColors } from '../../theme/tokens'
+import { useThemeMode } from '../../theme/ThemeContext'
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -20,6 +22,8 @@ const PAGE_SIZE = 20
 export default function IncidentList() {
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { mode } = useThemeMode()
+  const c = getColors(mode)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [severityFilter, setSeverityFilter] = useState<string>('')
@@ -53,19 +57,31 @@ export default function IncidentList() {
     {
       title: '严重度',
       dataIndex: 'severity',
-      width: 110,
+      width: 100,
       render: (s: Severity) => <SeverityBadge severity={s} />,
     },
     {
       title: '事件标题',
       dataIndex: 'title',
       render: (t: string, row: Incident) => (
-        <a
-          onClick={() => navigate(`/incidents/${row.id}`)}
-          style={{ fontWeight: 500, color: '#1a1a2e' }}
-        >
-          {t}
-        </a>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span
+            onClick={() => navigate(`/incidents/${row.id}`)}
+            style={{
+              fontWeight: 500,
+              fontSize: 13,
+              color: c.textBody,
+              cursor: 'pointer',
+              letterSpacing: '0.01em',
+              lineHeight: '1.4',
+            }}
+          >
+            {t}
+          </span>
+          <span style={{ fontSize: 11, color: c.textTertiary }}>
+            #{row.id.slice(0, 8)}
+          </span>
+        </div>
       ),
     },
     {
@@ -77,103 +93,125 @@ export default function IncidentList() {
     {
       title: '来源',
       dataIndex: 'source',
-      width: 130,
-      render: (s: string) => <Tag style={{ borderRadius: 4 }}>{s}</Tag>,
+      width: 120,
+      render: (s: string) => (
+        <Tag style={{
+          borderRadius: 4,
+          fontSize: 11,
+          padding: '1px 8px',
+          background: c.bgElevated,
+          border: `1px solid ${c.border}`,
+          color: c.textHint,
+        }}>{s}</Tag>
+      ),
     },
     {
-      title: 'AI 分析',
+      title: 'AI',
       dataIndex: 'ai_status',
-      width: 100,
+      width: 80,
       render: (s: string) => {
         const map: Record<string, { color: string; label: string }> = {
-          pending: { color: 'default', label: '未分析' },
+          pending: { color: 'default', label: '待分析' },
           running: { color: 'processing', label: '分析中' },
-          done: { color: 'success', label: '已完成' },
+          done: { color: 'success', label: '完成' },
           failed: { color: 'error', label: '失败' },
         }
         const { color, label } = map[s] ?? { color: 'default', label: s }
-        return <Tag color={color}>{label}</Tag>
+        return <Tag color={color} style={{ fontSize: 11 }}>{label}</Tag>
       },
     },
     {
       title: '开始时间',
       dataIndex: 'opened_at',
-      width: 160,
+      width: 140,
       render: (t: string) => (
         <Tooltip title={dayjs(t).format('YYYY-MM-DD HH:mm:ss')}>
-          <span style={{ fontSize: 12, color: '#666' }}>{dayjs(t).fromNow()}</span>
+          <span style={{ fontSize: 12, color: c.textSecondary }}>{dayjs(t).fromNow()}</span>
         </Tooltip>
-      ),
-    },
-    {
-      title: '操作',
-      width: 80,
-      render: (_: unknown, row: Incident) => (
-        <Button size="small" type="link" onClick={() => navigate(`/incidents/${row.id}`)}>
-          详情
-        </Button>
       ),
     },
   ]
 
   return (
     <div>
+      {/* 页头 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Title level={4} style={{ margin: 0, color: '#1a1a2e' }}>
-          事件管理
-        </Title>
-        <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+        <div>
+          <Title level={4} style={{ margin: 0, color: c.textBody, letterSpacing: '-0.01em' }}>
+            事件管理
+          </Title>
+          <span style={{ fontSize: 12, color: c.textTertiary, marginTop: 2, display: 'block' }}>
+            共 {total} 条事件
+          </span>
+        </div>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() => refetch()}
+          style={{ borderColor: c.borderStrong, color: c.textSecondary }}
+        >
           刷新
         </Button>
       </div>
 
-      <Card
-        style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
-      >
-        <Space style={{ marginBottom: 16 }} wrap>
-          <Input
-            placeholder="搜索事件标题"
-            prefix={<SearchOutlined />}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ width: 220 }}
-            allowClear
-          />
-          <Select
-            placeholder="严重度"
-            value={severityFilter || undefined}
-            onChange={(v) => setSeverityFilter(v ?? '')}
-            allowClear
-            style={{ width: 120 }}
-          >
-            {['P0', 'P1', 'P2', 'P3'].map((s) => (
-              <Option key={s} value={s}>{s}</Option>
-            ))}
-          </Select>
-          <Select
-            placeholder="状态"
-            value={statusFilter || undefined}
-            onChange={(v) => setStatusFilter(v ?? '')}
-            allowClear
-            style={{ width: 130 }}
-          >
-            {[
-              { value: 'open', label: '待处理' },
-              { value: 'ack', label: '已确认' },
-              { value: 'in_progress', label: '处理中' },
-              { value: 'resolved', label: '已解决' },
-              { value: 'closed', label: '已关闭' },
-            ].map((s) => (
-              <Option key={s.value} value={s.value}>{s.label}</Option>
-            ))}
-          </Select>
-        </Space>
+      {/* 筛选栏 */}
+      <div style={{
+        display: 'flex',
+        gap: 10,
+        marginBottom: 16,
+        flexWrap: 'wrap',
+        alignItems: 'center',
+      }}>
+        <Input
+          placeholder="搜索事件标题"
+          prefix={<SearchOutlined style={{ color: c.textTertiary }} />}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: 240 }}
+          allowClear
+        />
+        <Select
+          placeholder="严重度"
+          value={severityFilter || undefined}
+          onChange={(v) => setSeverityFilter(v ?? '')}
+          allowClear
+          style={{ width: 110 }}
+        >
+          {['P0', 'P1', 'P2', 'P3'].map((s) => (
+            <Option key={s} value={s}>{s}</Option>
+          ))}
+        </Select>
+        <Select
+          placeholder="状态"
+          value={statusFilter || undefined}
+          onChange={(v) => setStatusFilter(v ?? '')}
+          allowClear
+          style={{ width: 120 }}
+        >
+          {[
+            { value: 'open', label: '待处理' },
+            { value: 'ack', label: '已确认' },
+            { value: 'in_progress', label: '处理中' },
+            { value: 'resolved', label: '已解决' },
+            { value: 'closed', label: '已关闭' },
+          ].map((s) => (
+            <Option key={s.value} value={s.value}>{s.label}</Option>
+          ))}
+        </Select>
+      </div>
 
+      {/* 表格 */}
+      <div style={{
+        borderRadius: 10,
+        border: `1px solid ${c.border}`,
+        overflow: 'hidden',
+        background: c.bgSurface,
+      }}>
         <Table
           dataSource={filtered}
           columns={columns}
           rowKey="id"
           loading={isLoading}
+          size="middle"
           pagination={{
             current: page,
             pageSize: PAGE_SIZE,
@@ -181,14 +219,15 @@ export default function IncidentList() {
             onChange: (p) => setPage(p),
             showTotal: (t) => `共 ${t} 条`,
             showSizeChanger: false,
+            style: { padding: '12px 16px' },
           }}
           onRow={(record) => ({
             onClick: () => navigate(`/incidents/${record.id}`),
             style: { cursor: 'pointer' },
           })}
-          rowClassName={(_, idx) => (idx % 2 === 0 ? '' : 'ant-table-row-striped')}
+          style={{ background: 'transparent' }}
         />
-      </Card>
+      </div>
     </div>
   )
 }

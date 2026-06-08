@@ -1,9 +1,9 @@
-// Single source of truth for the dark-theme palette. Pages should import
-// from here instead of hard-coding hex values; the colours below are the
-// ones that appeared 3+ times across the original inline `style={{...}}`
-// chunks and CSS overrides.
+// Single source of truth for theme palettes.
+// `colors` = dark palette (kept for backward compat with all existing imports).
+// Use `getColors(mode)` in dynamic-theme contexts.
+import type { ThemeMode } from './ThemeContext'
 
-export const colors = {
+const darkColors = {
   // Layered surfaces — page → card → elevated
   bgPage: '#0a0a0a',
   bgSurface: '#111111',
@@ -13,14 +13,15 @@ export const colors = {
 
   // Borders, dimmest → strongest
   borderSubtle: '#1e1e1e',
-  border: '#222222',
-  borderStrong: '#333333',
+  border: '#2a2a2a',
+  borderStrong: '#444444',
+  borderInput: '#555555',
 
   // Text, dimmest → strongest
-  textMuted: '#444444',
-  textTertiary: '#555555',
-  textSecondary: '#666666',
-  textHint: '#999999',
+  textMuted: '#555555',
+  textTertiary: '#777777',
+  textSecondary: '#999999',
+  textHint: '#bbbbbb',
   textBody: '#e8e8e8',
   textStrong: '#ffffff',
 
@@ -32,6 +33,46 @@ export const colors = {
   caution: '#fadb14',
   success: '#52c41a',
   ai: '#722ed1',
-} as const
+}
 
-export type ColorToken = keyof typeof colors
+const lightColors = {
+  // Layered surfaces
+  bgPage: '#f5f5f7',
+  bgSurface: '#ffffff',
+  bgElevated: '#f0f0f0',
+  bgHover: '#e8e8e8',
+  bgInput: '#ffffff',
+
+  // Borders
+  borderSubtle: '#e8e8e8',
+  border: '#d9d9d9',
+  borderStrong: '#bfbfbf',
+  borderInput: '#d9d9d9',
+
+  // Text
+  textMuted: '#bfbfbf',
+  textTertiary: '#8c8c8c',
+  textSecondary: '#595959',
+  textHint: '#434343',
+  textBody: '#262626',
+  textStrong: '#000000',
+
+  // Accents
+  accent: '#000000',
+  primary: '#1677ff',
+  danger: '#ff4d4f',
+  warning: '#fa8c16',
+  caution: '#d4a017',
+  success: '#389e0d',
+  ai: '#722ed1',
+}
+
+export type ColorPalette = typeof darkColors
+export type ColorToken = keyof ColorPalette
+
+export function getColors(mode: ThemeMode): ColorPalette {
+  return mode === 'light' ? lightColors : darkColors
+}
+
+// Default export — dark palette (keeps backward compat with all existing imports)
+export const colors: ColorPalette = darkColors

@@ -133,7 +133,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/data-sources").To(h.list).
 		Doc("List data sources (secrets always masked, optional ?kind= filter)").
 		Param(ws.QueryParameter("kind", "filter by kind").DataType("string")).
-		Metadata(label.MetaIdentity, label.DataSourceList).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -141,7 +141,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 
 	ws.Route(ws.POST("/data-sources").To(h.create).
 		Doc("Create data source").
-		Metadata(label.MetaIdentity, label.DataSourceCreate).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -149,7 +149,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 
 	ws.Route(ws.PUT("/data-sources/{id}").To(h.update).
 		Doc("Update data source (blank secret keeps existing ciphertext)").
-		Metadata(label.MetaIdentity, label.DataSourceUpdate).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -157,7 +157,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 
 	ws.Route(ws.DELETE("/data-sources/{id}").To(h.delete).
 		Doc("Delete data source").
-		Metadata(label.MetaIdentity, label.DataSourceDelete).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -165,7 +165,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 
 	ws.Route(ws.POST("/data-sources/{id}/test").To(h.test).
 		Doc("Test connection (uses inline body fields if provided, else stored row)").
-		Metadata(label.MetaIdentity, label.DataSourceTest).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -179,7 +179,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 	// can also validate transforms.
 	ws.Route(ws.POST("/data-sources/{id}/test-message").To(h.testMessage).
 		Doc("Dry-run a sample JSON payload through this row's filter/mapping").
-		Metadata(label.MetaIdentity, label.DataSourceTest).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -187,7 +187,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 
 	ws.Route(ws.POST("/data-sources/{id}/set-default").To(h.setDefault).
 		Doc("Mark this row as the default for its kind (clears is_default on siblings)").
-		Metadata(label.MetaIdentity, label.DataSourceDefault).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -200,7 +200,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 		Doc("Proxy Prometheus instant query").
 		Param(ws.QueryParameter("query", "PromQL").DataType("string")).
 		Param(ws.QueryParameter("time", "RFC3339 or unix").DataType("string")).
-		Metadata(label.MetaIdentity, label.DataSourceQuery).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -212,7 +212,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 		Param(ws.QueryParameter("start", "unix or RFC3339").DataType("string")).
 		Param(ws.QueryParameter("end", "unix or RFC3339").DataType("string")).
 		Param(ws.QueryParameter("step", "duration or seconds, e.g. 15s").DataType("string")).
-		Metadata(label.MetaIdentity, label.DataSourceQuery).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -220,7 +220,7 @@ func (h *dataSourceHandler) registerRoutes(ws *restful.WebService) {
 
 	ws.Route(ws.GET("/data-sources/{id}/prom/labels").To(h.promLabels).
 		Doc("Proxy Prometheus /api/v1/labels (autocomplete)").
-		Metadata(label.MetaIdentity, label.DataSourceQuery).
+		Metadata(label.MetaIdentity, label.DataSourceAccess).
 		Metadata(label.MetaModule, label.DataSourceModuleName).
 		Metadata(label.MetaKind, "DataSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -557,24 +557,62 @@ func (h *dataSourceHandler) testK8s(ctx context.Context, endpoint string, cfg ma
 		return false, "bearer token is required when in_cluster=false", nil
 	}
 
-	u, err := url.Parse(strings.TrimRight(endpoint, "/") + "/version")
-	if err != nil {
-		return false, "invalid endpoint: " + err.Error(), nil
+	base := strings.TrimRight(endpoint, "/")
+	client := h.httpClientForRow(cfg)
+
+	// Try candidate paths in order: /version (standard K8s), /healthz, /livez.
+	// A 401/403 also proves reachability (API server is there, token may lack
+	// permissions on that path). 301/302 redirects are followed automatically.
+	paths := []string{"/version", "/healthz", "/livez"}
+	var lastNetErr error
+	for _, p := range paths {
+		u, err := url.Parse(base + p)
+		if err != nil {
+			continue
+		}
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		res, err := client.Do(req)
+		if err != nil {
+			lastNetErr = err
+			continue
+		}
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		_ = res.Body.Close()
+		switch res.StatusCode {
+		case http.StatusOK:
+			var detail json.RawMessage
+			if p == "/version" {
+				detail = json.RawMessage(body)
+			}
+			return true, "ok (" + p + ")", detail
+		case http.StatusUnauthorized, http.StatusForbidden:
+			// API server reachable but token lacks permission on this path.
+			return true, fmt.Sprintf("reachable – HTTP %d on %s", res.StatusCode, p), nil
+		case http.StatusNotFound:
+			// Path not exposed – try next candidate
+			continue
+		default:
+			return false, fmt.Sprintf("HTTP %d: %s", res.StatusCode, string(body)), nil
+		}
 	}
+
+	// All standard K8s paths returned 404 (likely a reverse-proxy in front).
+	// Fall back to a plain HTTP reachability check on the root path.
+	if lastNetErr != nil {
+		return false, "dial failed: " + lastNetErr.Error(), nil
+	}
+	u, _ := url.Parse(base + "/")
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-
-	client := h.httpClientForRow(cfg)
 	res, err := client.Do(req)
 	if err != nil {
 		return false, "dial failed: " + err.Error(), nil
 	}
-	defer func() { _ = res.Body.Close() }()
-	body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-	if res.StatusCode != http.StatusOK {
-		return false, fmt.Sprintf("HTTP %d: %s", res.StatusCode, string(body)), nil
-	}
-	return true, "ok", json.RawMessage(body)
+	_, _ = io.Copy(io.Discard, res.Body)
+	_ = res.Body.Close()
+	// Any HTTP response (including 200/404 from a proxy) proves TCP+TLS reachability.
+	return true, fmt.Sprintf("endpoint reachable (HTTP %d) – standard K8s probe paths not exposed, may be behind a reverse proxy", res.StatusCode), nil
 }
 
 func (h *dataSourceHandler) testOpenSearch(ctx context.Context, endpoint string, cfg map[string]any, secrets map[string]string) (bool, string, any) {
@@ -850,23 +888,10 @@ func (h *dataSourceHandler) materialise(in dataSourceInput, existing model.DataS
 		return model.DataSource{}, fmt.Errorf("unsupported kind %q", in.Kind)
 	}
 
-	// AI 分析白名单：仅日志类数据源（kafka / opensearch / elastic）支持开启 ai_enabled。
-	// data_sources_ai_enabled_kind_chk CHECK 约束是兜底。
-	if in.AIEnabled {
-		switch in.Kind {
-		case model.DataSourceKindKafka, model.DataSourceKindOpenSearch, model.DataSourceKindElastic:
-		default:
-			return model.DataSource{}, fmt.Errorf("ai_enabled 仅 Kafka / OpenSearch / Elastic 数据源支持，当前 kind=%q", in.Kind)
-		}
-	}
-
+	// AI 分析：任意数据源类型均可开启 ai_enabled。
 	aiAuto := in.AIAutoTrigger && in.AIEnabled
-	if aiAuto {
-		switch in.Kind {
-		case model.DataSourceKindKafka, model.DataSourceKindOpenSearch, model.DataSourceKindElastic:
-		default:
-			return model.DataSource{}, fmt.Errorf("ai_auto_trigger 仅 Kafka / OpenSearch / Elastic 数据源支持，当前 kind=%q", in.Kind)
-		}
+	if aiAuto && !in.AIEnabled {
+		return model.DataSource{}, fmt.Errorf("ai_auto_trigger 需要 ai_enabled 同时开启")
 	}
 
 	cfg := normaliseConfig(in.Kind, in.Config)

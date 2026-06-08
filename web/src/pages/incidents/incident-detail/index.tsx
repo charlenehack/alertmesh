@@ -28,6 +28,8 @@ import {
   timelineActionMeta, truncateInline,
 } from './helpers'
 import type { AIReportData } from './types'
+import { getColors } from '../../../theme/tokens'
+import { useThemeMode } from '../../../theme/ThemeContext'
 
 const { Text, Title } = Typography
 
@@ -36,6 +38,8 @@ export default function IncidentDetail() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { mode } = useThemeMode()
+  const c = getColors(mode)
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
@@ -57,11 +61,10 @@ export default function IncidentDetail() {
     qc.invalidateQueries({ queryKey: ['incidents'] })
   })
 
-  // Whether this incident's data source is on the AI whitelist. When
-  // disabled we don't render the trigger button, hide the AI tab entirely,
-  // and skip the /ai polling — the latter is what was burning a request
-  // every 10s on every Prometheus incident the user opened.
-  const aiDisabled = inc?.ai_status === 'disabled'
+  // aiDisabled: always false — all incidents can attempt AI analysis.
+  // The backend guards ai_enabled per data source; if the source has
+  // ai_enabled=false the trigger endpoint returns 400 with a clear message.
+  const aiDisabled = false
 
   const { data: aiData, refetch: refetchAI } = useQuery({
     queryKey: ['ai-report', id],
@@ -211,7 +214,7 @@ export default function IncidentDetail() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/incidents')} type="text" />
         <div style={{ flex: 1 }}>
-          <Title level={4} style={{ margin: 0, color: '#1a1a2e' }}>{inc.title}</Title>
+          <Title level={4} style={{ margin: 0, color: c.textBody }}>{inc.title}</Title>
           <Space size={8} style={{ marginTop: 4 }} wrap>
             <SeverityBadge severity={inc.severity as Severity} />
             <StatusBadge status={status} />
@@ -254,7 +257,7 @@ export default function IncidentDetail() {
             </Popconfirm>
           )}
           {aiDisabled ? (
-            <Tooltip title="该事件的告警源未启用 AI 分析（仅 Kafka / OpenSearch / Elasticsearch 数据源开启 ai_enabled 后生效）">
+            <Tooltip title="该事件的告警源未启用 AI 分析（请前往数据源配置开启 ai_enabled）">
               <Tag style={{ padding: '4px 10px', fontSize: 12 }}>
                 <RobotOutlined style={{ marginRight: 4 }} />
                 AI 分析未启用
@@ -385,10 +388,12 @@ interface OverviewTabProps {
 }
 
 function OverviewTab({ inc, aiInfo, latestAlert }: OverviewTabProps) {
+  const { mode } = useThemeMode()
+  const c = getColors(mode)
   return (
     <div>
       <Card
-        style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 16 }}
+        style={{ borderRadius: 12, border: `1px solid ${c.border}`, boxShadow: 'none', marginBottom: 16 }}
       >
         <Descriptions column={2} size="small">
           <Descriptions.Item label="事件 ID"><Text code>{inc.id}</Text></Descriptions.Item>

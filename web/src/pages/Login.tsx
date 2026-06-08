@@ -58,7 +58,7 @@ export default function Login() {
       <div style={{ width: 360 }}>
         {/* Brand */}
         <div style={{ marginBottom: 48 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
               <rect width="28" height="28" rx="6" fill="#ffffff" />
               <path
@@ -69,11 +69,13 @@ export default function Login() {
                 strokeLinejoin="round"
               />
             </svg>
-            <span style={{ color: '#ffffff', fontSize: 20, fontWeight: 700, letterSpacing: '0.5px' }}>
-              AlertMesh
-            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
+              <span style={{ color: '#ffffff', fontSize: 18, fontWeight: 700, letterSpacing: '0.5px' }}>
+                运维管理平台
+              </span>
+              <span style={{ color: '#555555', fontSize: 11, letterSpacing: '0.5px' }}>Cloud-Hub DevOps</span>
+            </div>
           </div>
-          <p style={{ color: '#555555', fontSize: 13, margin: 0 }}>智能告警聚合平台</p>
         </div>
 
         {/* Form */}

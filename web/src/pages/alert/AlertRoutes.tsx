@@ -12,6 +12,7 @@ import {
 import { ApiError } from '../../api/request'
 import { PageHeader } from '../../components/PageHeader'
 import { SurfaceCard } from '../../components/SurfaceCard'
+import { useTheme } from '../../hooks/useTheme'
 import type { AlertRoute, LabelMatcher, NotificationPolicy } from '../../types'
 
 const ALLOWED_MATCHER_OPS: LabelMatcher['op'][] = ['=', '!=', '=~', '!~']
@@ -78,6 +79,7 @@ const { TextArea } = Input
 export default function AlertRoutes() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<AlertRoute | null>(null)
   const [form] = Form.useForm()
@@ -138,7 +140,7 @@ export default function AlertRoutes() {
       title: '优先级',
       dataIndex: 'priority',
       width: 80,
-      render: (p: number) => <Tag style={{ background: '#1a1a1a', borderColor: '#333', color: '#ccc' }}>{p}</Tag>,
+      render: (p: number) => <Tag style={{ background: c.bgElevated, borderColor: c.border, color: c.textHint }}>{p}</Tag>,
     },
     {
       title: '名称',
@@ -155,7 +157,7 @@ export default function AlertRoutes() {
           )
         }
         return (
-          <span style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>
+          <span style={{ fontSize: 11, color: c.textSecondary, fontFamily: 'monospace' }}>
             {m.map((x: unknown) => {
               const matcher = x as { key?: string; name?: string; op?: string; value?: string }
               const label = matcher.key || matcher.name || ''
@@ -216,9 +218,9 @@ export default function AlertRoutes() {
         size={600}
         onClose={() => { setOpen(false); setEditing(null) }}
         styles={{
-          header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-          body: { background: '#111111', padding: '20px 24px' },
-          footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+          header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+          body: { background: c.bgSurface, padding: '20px 24px' },
+          footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
         }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -257,7 +259,7 @@ export default function AlertRoutes() {
               },
             ]}
             extra={
-              <span style={{ color: '#666', fontSize: 11 }}>
+              <span style={{ color: c.textTertiary, fontSize: 11 }}>
                 命中后该路由才会接管这条告警，并把它发往下面选择的通知策略。
                 严重级请使用 <Text code style={{ fontSize: 11 }}>P0/P1/P2/P3</Text>；
                 <strong style={{ color: '#faad14' }}> 留空 + 最低优先级</strong> 即兜底路由（建议指向 SRE on-call 通知策略）。
@@ -274,7 +276,7 @@ export default function AlertRoutes() {
             label="通知策略"
             rules={[{ required: true, message: '请至少选择一个通知策略' }]}
             extra={
-              <span style={{ color: '#666', fontSize: 11 }}>
+              <span style={{ color: c.textTertiary, fontSize: 11 }}>
                 命中本路由的告警会按所选策略路由给联系人 / 联系人组。
                 {allPolicies.length === 0 && (
                   <span style={{ color: '#fa8c16' }}> 当前还没有通知策略，请先到「通知策略」页面创建。</span>
@@ -293,7 +295,7 @@ export default function AlertRoutes() {
               }))}
               tagRender={({ value, onClose }) => (
                 <Tag closable onClose={onClose}
-                  style={{ background: '#0d1a33', border: '1px solid #1a3a6e', color: '#1677ff', marginRight: 4 }}>
+                  style={{ background: 'rgba(22,119,255,0.1)', border: '1px solid rgba(22,119,255,0.3)', color: '#1677ff', marginRight: 4 }}>
                   {policyNameMap[value as string] || value}
                 </Tag>
               )}
@@ -312,14 +314,14 @@ export default function AlertRoutes() {
             items={[
               {
                 key: 'advanced',
-                label: <span style={{ color: '#888', fontSize: 13 }}>高级配置（可选）</span>,
+                label: <span style={{ color: c.textTertiary, fontSize: 13 }}>高级配置（可选）</span>,
                 children: (
                   <>
                     <Form.Item
                       name="group_by"
                       label="分组字段（逗号分隔）"
                       extra={
-                        <span style={{ color: '#666', fontSize: 11 }}>
+                        <span style={{ color: c.textTertiary, fontSize: 11 }}>
                           仅作为兜底；建议在「告警聚合策略」里集中管理。留空时引擎按 alertname 分组。
                         </span>
                       }

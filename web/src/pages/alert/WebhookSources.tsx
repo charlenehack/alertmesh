@@ -14,6 +14,7 @@ import {
 } from '../../api/alert'
 import { PageHeader } from '../../components/PageHeader'
 import { SurfaceCard } from '../../components/SurfaceCard'
+import { useTheme } from '../../hooks/useTheme'
 import type {
   WebhookPayloadMapping, WebhookSource, WebhookSourceCreated,
 } from '../../types'
@@ -48,6 +49,7 @@ const DEFAULT_LOG_ALERT_MAPPING: WebhookPayloadMapping = {
 export default function WebhookSources() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<WebhookSource | null>(null)
   const [form] = Form.useForm()
@@ -152,8 +154,8 @@ export default function WebhookSources() {
       dataIndex: 'last_used_at',
       width: 170,
       render: (t: string | null | undefined) =>
-        t ? <Text style={{ fontSize: 11, color: '#888' }}>{new Date(t).toLocaleString()}</Text>
-          : <Text style={{ fontSize: 11, color: '#555' }}>—</Text>,
+        t ? <Text style={{ fontSize: 11, color: c.textSecondary }}>{new Date(t).toLocaleString()}</Text>
+          : <Text style={{ fontSize: 11, color: c.textTertiary }}>—</Text>,
     },
     {
       title: '操作',
@@ -227,9 +229,9 @@ export default function WebhookSources() {
         size={520}
         onClose={() => { setOpen(false); setEditing(null) }}
         styles={{
-          header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-          body: { background: '#111111', padding: '20px 24px' },
-          footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+          header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+          body: { background: c.bgSurface, padding: '20px 24px' },
+          footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
         }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -275,7 +277,7 @@ export default function WebhookSources() {
               { required: true, message: '名称必填' },
               { pattern: /^[A-Za-z0-9_-]+$/, message: '只能包含字母、数字、下划线和短横线' },
             ]}
-            extra={<span style={{ color: '#666', fontSize: 11 }}>例如填写 cloudwatch-prod，对应 URL 为 /api/v1/alerts/webhook/cloudwatch-prod</span>}
+            extra={<span style={{ color: c.textTertiary, fontSize: 11 }}>例如填写 cloudwatch-prod，对应 URL 为 /api/v1/alerts/webhook/cloudwatch-prod</span>}
           >
             <Input placeholder="cloudwatch-prod" disabled={!!editing} />
           </Form.Item>
@@ -283,7 +285,7 @@ export default function WebhookSources() {
             name="allow_skew"
             label="允许时钟偏差（秒）"
             initialValue={300}
-            extra={<span style={{ color: '#666', fontSize: 11 }}>签名 created 参数与服务器时间的最大差值；过大会放宽防重放窗口。</span>}
+            extra={<span style={{ color: c.textTertiary, fontSize: 11 }}>签名 created 参数与服务器时间的最大差値；过大会放宽防重放窗口。</span>}
           >
             <InputNumber style={{ width: '100%' }} min={5} max={3600} />
           </Form.Item>
@@ -298,7 +300,7 @@ export default function WebhookSources() {
             label="Payload 映射 (JSON)"
             rules={[{ required: true, message: '请填写 JSON 映射' }]}
             extra={
-              <span style={{ color: '#666', fontSize: 11 }}>
+              <span style={{ color: c.textTertiary, fontSize: 11 }}>
                 使用 <Text code>tidwall/gjson</Text> 路径从 Webhook 体取值；新建已预填 OpenSearch 风格示例，请按你方 Monitor 实际字段修改。详见文档 log-alert-denoising.md。
               </span>
             }
@@ -340,7 +342,7 @@ export default function WebhookSources() {
               style={{ marginBottom: 16 }}
             />
 
-            <Paragraph style={{ marginBottom: 4, color: '#888', fontSize: 12 }}>
+            <Paragraph style={{ marginBottom: 4, color: c.textSecondary, fontSize: 12 }}>
               名称 / URL path
             </Paragraph>
             <Paragraph copyable={{ text: revealed.name, tooltips: ['复制', '已复制'] }}
@@ -348,7 +350,7 @@ export default function WebhookSources() {
               {revealed.name}
             </Paragraph>
 
-            <Paragraph style={{ marginBottom: 4, color: '#888', fontSize: 12 }}>
+            <Paragraph style={{ marginBottom: 4, color: c.textSecondary, fontSize: 12 }}>
               Client ID (RFC 9421 <code>keyid</code>)
             </Paragraph>
             <Paragraph copyable={{ text: revealed.client_id, tooltips: ['复制', '已复制'] }}
@@ -357,7 +359,7 @@ export default function WebhookSources() {
             </Paragraph>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <Text style={{ color: '#888', fontSize: 12 }}>私钥 (PEM, PKCS#8)</Text>
+              <Text style={{ color: c.textSecondary, fontSize: 12 }}>私鑰 (PEM, PKCS#8)</Text>
               <Button size="small" icon={<CopyOutlined />}
                 onClick={() => copy(revealed.private_key_pem, '私钥')}>
                 复制私钥
@@ -370,7 +372,7 @@ export default function WebhookSources() {
               style={{ fontFamily: 'monospace', fontSize: 11, marginTop: 6 }}
             />
 
-            <Paragraph style={{ marginTop: 12, color: '#888', fontSize: 12 }}>
+            <Paragraph style={{ marginTop: 12, color: c.textSecondary, fontSize: 12 }}>
               对应公钥 (PEM, PKIX) - 已存储于服务端
             </Paragraph>
             <TextArea

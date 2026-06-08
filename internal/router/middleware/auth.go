@@ -13,7 +13,13 @@ import (
 // AuthFilter extracts and validates the JWT token for routes that require authentication.
 func AuthFilter(jwtSvc *auth.JWTService) restful.FilterFunction {
 	return func(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
-		meta := req.SelectedRoute().Metadata()
+		route := req.SelectedRoute()
+		if route == nil {
+			// No route matched — let go-restful return 404 naturally.
+			chain.ProcessFilter(req, resp)
+			return
+		}
+		meta := route.Metadata()
 		if !isEnabled(meta, "auth") {
 			chain.ProcessFilter(req, resp)
 			return

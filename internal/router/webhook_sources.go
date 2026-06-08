@@ -49,7 +49,7 @@ type webhookSourceCreated struct {
 func (h *alertCenterHandler) registerWebhookSourceRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/alert/webhook-sources").To(h.listWebhookSources).
 		Doc("List trusted webhook sources (no private keys)").
-		Metadata(label.MetaIdentity, label.WebhookSourceList).
+		Metadata(label.MetaIdentity, label.WebhookSourceAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "WebhookSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -57,7 +57,7 @@ func (h *alertCenterHandler) registerWebhookSourceRoutes(ws *restful.WebService)
 
 	ws.Route(ws.POST("/alert/webhook-sources").To(h.createWebhookSource).
 		Doc("Create webhook source; returns one-time private key").
-		Metadata(label.MetaIdentity, label.WebhookSourceCreate).
+		Metadata(label.MetaIdentity, label.WebhookSourceAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "WebhookSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -65,7 +65,7 @@ func (h *alertCenterHandler) registerWebhookSourceRoutes(ws *restful.WebService)
 
 	ws.Route(ws.PUT("/alert/webhook-sources/{id}").To(h.updateWebhookSource).
 		Doc("Update webhook source metadata (no key changes)").
-		Metadata(label.MetaIdentity, label.WebhookSourceUpdate).
+		Metadata(label.MetaIdentity, label.WebhookSourceAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "WebhookSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -73,7 +73,7 @@ func (h *alertCenterHandler) registerWebhookSourceRoutes(ws *restful.WebService)
 
 	ws.Route(ws.POST("/alert/webhook-sources/{id}/rotate").To(h.rotateWebhookSource).
 		Doc("Regenerate keypair; returns one-time private key").
-		Metadata(label.MetaIdentity, label.WebhookSourceRotate).
+		Metadata(label.MetaIdentity, label.WebhookSourceAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "WebhookSource").
 		Metadata(label.MetaAuth, label.Enable).
@@ -81,7 +81,7 @@ func (h *alertCenterHandler) registerWebhookSourceRoutes(ws *restful.WebService)
 
 	ws.Route(ws.DELETE("/alert/webhook-sources/{id}").To(h.deleteWebhookSource).
 		Doc("Soft-delete webhook source").
-		Metadata(label.MetaIdentity, label.WebhookSourceDelete).
+		Metadata(label.MetaIdentity, label.WebhookSourceAccess).
 		Metadata(label.MetaModule, label.AlertCenterModuleName).
 		Metadata(label.MetaKind, "WebhookSource").
 		Metadata(label.MetaAuth, label.Enable).

@@ -1,8 +1,12 @@
 package router
 
 import (
+	"net/http"
+	"path/filepath"
+
 	restful "github.com/emicklei/go-restful/v3"
 	"github.com/mikespook/gorbac"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 
 	ai_pkg "github.com/kuzane/alertmesh/internal/ai"
@@ -29,6 +33,16 @@ func Setup(
 	cfg *config.Config,
 ) *restful.Container {
 	container := restful.NewContainer()
+
+	// CORS: 允许开发环境跨域直连（生产环境 Nginx 同域无需此 filter 生效）
+	cors := restful.CrossOriginResourceSharing{
+		AllowedHeaders: []string{"Content-Type", "Authorization"},
+		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
+		AllowedDomains: []string{},   // 空 = 允许所有 Origin
+		CookiesAllowed: false,
+		Container:      container,
+	}
+	container.Filter(cors.Filter)
 
 	// Global filters. Order matters: audit first so we record every attempt,
 	// then the webhook-signature gate (no-op for non-AlertWebhook routes),
@@ -66,6 +80,20 @@ func Setup(
 
 	realtimeH := newRealtimeHandler(rtHub)
 	realtimeH.registerRoutes(ws)
+
+	// Nginx config handler
+	nginxWorkDir := cfg.NginxWorkDir
+	if absDir, err := filepath.Abs(nginxWorkDir); err == nil {
+		nginxWorkDir = absDir
+	}
+	if err := ensureWorkDir(nginxWorkDir); err != nil {
+		log.Warn().Err(err).Str("dir", nginxWorkDir).Msg("failed to create nginx work dir")
+	}
+	nginxH := newNginxHandler(nginxWorkDir, db, cfg)
+	nginxH.registerRoutes(ws)
+
+	k8sMgmtH := newK8sMgmtHandler(db, cfg)
+	k8sMgmtH.registerRoutes(ws)
 
 	container.Add(ws)
 

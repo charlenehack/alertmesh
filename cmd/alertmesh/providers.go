@@ -124,10 +124,10 @@ func ProvideHTTPServer(cfg *config.Config, container *restful.Container) *http.S
 	mux.Handle("/", container)
 
 	return &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
-		Handler:      mux,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:              fmt.Sprintf(":%d", cfg.ServerPort),
+		Handler:           mux,
+		ReadHeaderTimeout: 30 * time.Second,  // 只限制 header 读取时间，body（文件上传）不受此限制
+		WriteTimeout:      120 * time.Second, // 必要时容许长时间响应（如终端会话）
+		IdleTimeout:       120 * time.Second,
 	}
 }

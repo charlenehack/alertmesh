@@ -17,12 +17,16 @@ func ACLFilter(rbac *gorbac.RBAC) restful.FilterFunction {
 		}
 
 		username, _ := req.Attribute("username").(string)
-		if username == "admin" {
-			chain.ProcessFilter(req, resp)
-			return
+		roles, _ := req.Attribute("roles").([]string)
+
+		// 管理员角色自动放行
+		for _, r := range roles {
+			if r == "管理员" {
+				chain.ProcessFilter(req, resp)
+				return
+			}
 		}
 
-		roles, _ := req.Attribute("roles").([]string)
 		permFlag := req.Request.Method + ":" + req.SelectedRoute().Path()
 
 		granted := false

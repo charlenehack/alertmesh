@@ -43,6 +43,8 @@ func NewApp(
 	container *restful.Container,
 ) *App {
 	auth.StoreRouter(container, db)
+	// 服务重启时把上次未完成的 running 任务重置为 pending，避免永远卡在 running 状态
+	ai.ResetStaleTasks(db)
 	return &App{
 		Cfg:             cfg,
 		Server:          server,

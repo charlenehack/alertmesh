@@ -38,39 +38,270 @@ flowchart LR
 | **统一权限** | gorbac RBAC，接口权限 = 按钮权限，identity 自动同步到 `endpoints` |
 | **认证** | 本地账号、LDAP（含 group → role 映射）、OIDC / SSO |
 
-## Quick Start
+## 部署
+
+### 方式一：Docker Compose（推荐）
+
+**前提：** 服务器已安装 Docker >= 24 和 Docker Compose >= 2.20。
 
 ```bash
-# 1. 准备依赖
-docker compose up -d postgres   # 或自备 PostgreSQL 15+
+# 1. 拉取代码
+git clone <repo-url> /opt/alertmesh
+cd /opt/alertmesh
 
-# 2. 配置环境
-cp .env.example .env             # 修改 DATABASE_DSN / JWT_SECRET / ENCRYPTION_KEY
+# 2. 生成加密密钥并配置环境变量
+cp .env.example .env
+openssl rand -base64 32   # 复制输出值填入 ALERTMESH_ENCRYPTION_KEY
+vim .env
+# 必须修改的两项：
+#   ALERTMESH_DATABASE_DSN=postgres://alertmesh:强密码@postgres:5432/alertmesh?sslmode=disable
+#   ALERTMESH_ENCRYPTION_KEY=<上面 openssl 命令的输出>
 
-# 3. 数据库迁移
-make migrate-up
+# 3. 一键启动（自动拉起 PostgreSQL，首次启动自动执行数据库迁移）
+docker compose -f deploy/docker/docker-compose.yml up -d
 
-# 4. 跑后端
-make run                         # 默认监听 :8080
+# 4. 查看启动日志（确认无报错，并获取 admin 初始密码）
+docker compose -f deploy/docker/docker-compose.yml logs -f alertmesh
 
-# 5. 跑前端（另开一个终端）
-cd web && pnpm install && pnpm dev
+# 5. 验证服务健康
+curl http://localhost:8080/healthz
+# 返回 {"status":"ok"} 表示启动成功
 
-# 6. 首次登录
-#    用户名 admin / 密码见 logs（首次启动会输出一次性密码）
+# 6. 访问 Web UI
+# http://<服务器IP>:8080
+# 默认账号：admin / 密码见上面日志输出
 ```
 
-环境变量最少三项：`ALERTMESH_DATABASE_DSN` / `ALERTMESH_JWT_SECRET` /
-`ALERTMESH_ENCRYPTION_KEY`（base64 32 bytes for AES-256）。其余开关详见
-[`.env.example`](.env.example)。
+> 数据库迁移由后端启动时**自动执行**，无需手动运行任何 migrate 命令。
 
-容器化与多节点部署：
+---
+
+### 方式二：裸机手动部署（Ubuntu / Debian）
+
+#### 1. 安装系统依赖
 
 ```bash
-docker compose up -d             # 一键拉起 alertmesh + postgres
-# 或
-helm upgrade --install alertmesh deploy/helm/alertmesh -n alerting
+apt-get update && apt-get install -y curl git openssl
+
+# ── 安装 Go 1.22+ ──────────────────────────────────────────────────
+wget https://go.dev/dl/go1.22.5.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.22.5.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
+source /etc/profile
+go version   # 确认输出 go1.22.x
+
+# ── 安装 Node.js 20+ ───────────────────────────────────────────────
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt-get install -y nodejs
+node -v   # 确认输出 v20.x
+
+# ── 安装 PostgreSQL 15+ ────────────────────────────────────────────
+apt-get install -y postgresql
+systemctl enable postgresql && systemctl start postgresql
 ```
+
+#### 2. 初始化数据库
+
+```bash
+sudo -u postgres psql << 'SQL'
+CREATE USER alertmesh WITH PASSWORD '替换为强密码';
+CREATE DATABASE alertmesh OWNER alertmesh;
+\q
+SQL
+
+# 验证连接
+psql -U alertmesh -h localhost -d alertmesh -c "SELECT 1;"
+```
+
+#### 3. 拉取代码
+
+```bash
+git clone <repo-url> /opt/alertmesh
+cd /opt/alertmesh
+```
+
+#### 4. 配置环境变量
+
+```bash
+cp .env.example .env
+vim .env
+```
+
+`.env` 关键配置项：
+
+```dotenv
+# ── 必填 ──────────────────────────────────────────────────────────
+ALERTMESH_DATABASE_DSN=postgres://alertmesh:替换为强密码@localhost:5432/alertmesh?sslmode=disable
+ALERTMESH_ENCRYPTION_KEY=<执行 openssl rand -base64 32 的输出>   # ⚠️ 生成后不可更改
+
+# ── 基础配置 ──────────────────────────────────────────────────────
+ALERTMESH_SERVER_PORT=8080       # HTTP 监听端口
+ALERTMESH_LOG_LEVEL=info         # info / debug / warn
+ALERTMESH_LOG_FORMAT=json        # json（生产） / pretty（调试）
+ALERTMESH_AI_WORKERS=2           # AI 分析并发 worker 数
+
+# ── 可选：AI 根因分析数据源 ────────────────────────────────────────
+# ALERTMESH_PROMETHEUS_URL=http://prometheus:9090
+# ALERTMESH_OPENSEARCH_URL=http://opensearch:9200
+
+# ── 可选：Redis 缓存 ───────────────────────────────────────────────
+# ALERTMESH_REDIS_ENABLED=true
+# ALERTMESH_REDIS_ADDR=localhost:6379
+
+# ── 可选：Nginx 配置下发（运维操作功能） ───────────────────────────
+# NGINX_WORK_DIR=/opt/alertmesh/work
+# ALERTMESH_ANSIBLE_USER=root
+# ALERTMESH_ANSIBLE_PASSWORD=ssh密码
+# ALERTMESH_ANSIBLE_NGINX_BIN=/usr/sbin/nginx
+```
+
+#### 5. 编译后端
+
+```bash
+cd /opt/alertmesh
+go build -trimpath -ldflags "-s -w" -o alertmesh ./cmd/alertmesh/
+ls -lh alertmesh   # 确认二进制文件存在
+```
+
+#### 6. 构建前端
+
+```bash
+cd /opt/alertmesh/web
+npm install
+npx vite build        # ⚠️ 不要用 npm run build，会做 TS 类型检查可能报错
+ls dist/              # 确认 index.html 存在
+cd /opt/alertmesh
+```
+
+#### 7. 配置 systemd 服务（开机自启）
+
+```bash
+# 创建专用运行用户
+useradd -r -s /sbin/nologin alertmesh
+mkdir -p /var/log/alertmesh
+chown -R alertmesh:alertmesh /opt/alertmesh /var/log/alertmesh
+
+# 创建 systemd 服务文件
+cat > /etc/systemd/system/alertmesh.service << 'EOF'
+[Unit]
+Description=AlertMesh Alert Platform
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=alertmesh
+WorkingDirectory=/opt/alertmesh
+EnvironmentFile=/opt/alertmesh/.env
+ExecStart=/opt/alertmesh/alertmesh
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 启动服务
+systemctl daemon-reload
+systemctl enable alertmesh
+systemctl start alertmesh
+
+# 查看启动状态
+systemctl status alertmesh
+journalctl -u alertmesh -f   # 实时日志（获取 admin 初始密码）
+```
+
+#### 8. 验证服务
+
+```bash
+# 后端健康检查
+curl http://localhost:8080/healthz
+# 预期：{"status":"ok"}
+
+# 查看监听端口
+ss -tlnp | grep 8080
+```
+
+---
+
+### Nginx 反向代理配置
+
+生产环境推荐在 alertmesh 前挂 Nginx，统一处理静态文件、HTTPS 和 WebSocket：
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    # HTTPS 时将 80 重定向：
+    # return 301 https://$host$request_uri;
+
+    # 前端静态文件
+    root /opt/alertmesh/web/dist;
+    index index.html;
+
+    # SPA 路由 fallback（必须，否则刷新页面 404）
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API 反向代理
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 300s;
+    }
+
+    # WebSocket（容器终端 + SSE 流式推送，必须单独配置）
+    location /ws {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600s;
+    }
+}
+```
+
+```bash
+nginx -t && systemctl reload nginx
+```
+
+---
+
+### 升级（后续版本更新）
+
+```bash
+cd /opt/alertmesh
+
+# 1. 拉取最新代码
+git pull
+
+# 2. 重新编译后端
+go build -trimpath -ldflags "-s -w" -o alertmesh ./cmd/alertmesh/
+
+# 3. 重新构建前端
+cd web && npm install && npx vite build && cd ..
+
+# 4. 重启服务（数据库迁移自动执行）
+systemctl restart alertmesh
+systemctl status alertmesh
+```
+
+---
+
+### 注意事项
+
+| 事项 | 说明 |
+|------|------|
+| **ENCRYPTION_KEY 不可更改** | 生产部署后必须妥善保管，修改后所有加密数据将无法解密 |
+| **数据库备份** | 建议配置 PostgreSQL 定时备份：`pg_dump alertmesh > backup.sql` |
+| **防火墙** | 对外只开放 80/443，后端端口（8080）不要直接暴露到公网 |
+| **首次登录密码** | 启动日志中会输出 admin 初始密码，登录后立即在「个人设置」中修改 |
+| **前端构建命令** | 务必用 `npx vite build`，不要用 `npm run build`（会做 TS 类型检查） |
 
 ## 文档索引
 

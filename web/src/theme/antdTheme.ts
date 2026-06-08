@@ -1,125 +1,175 @@
 import type { ThemeConfig } from 'antd'
-import { colors } from './tokens'
+import { theme as antdAlgorithm } from 'antd'
+import { getColors } from './tokens'
+import type { ThemeMode } from './ThemeContext'
 
 // Single antd ThemeConfig built from the design tokens. Per-component
 // overrides here replace the bulk of the ~365-line `!important` stack that
 // used to live in `index.css` for the dark theme.
-export const antdTheme: ThemeConfig = {
-  token: {
-    colorPrimary: colors.accent,
-    colorBgBase: colors.bgPage,
-    colorTextBase: colors.textBody,
-    colorBorder: colors.borderStrong,
-    colorBgContainer: colors.bgSurface,
-    colorBgElevated: colors.bgElevated,
-    colorBgLayout: colors.bgPage,
-    colorText: colors.textBody,
-    colorTextSecondary: colors.textSecondary,
-    colorTextPlaceholder: colors.textTertiary,
-    colorFill: colors.bgElevated,
-    colorFillSecondary: colors.bgHover,
-    borderRadius: 6,
-    fontFamily: "'PingFang SC', 'Microsoft YaHei', sans-serif",
-  },
-  components: {
-    Table: {
-      headerBg: colors.bgElevated,
-      headerColor: colors.textHint,
-      rowHoverBg: colors.bgElevated,
-      borderColor: colors.border,
-      colorBgContainer: colors.bgSurface,
+export function getAntdTheme(mode: ThemeMode): ThemeConfig {
+  const c = getColors(mode)
+  const isDark = mode === 'dark'
+
+  return {
+    algorithm: isDark ? antdAlgorithm.darkAlgorithm : antdAlgorithm.defaultAlgorithm,
+    token: {
+      colorPrimary: c.primary,
+      colorBgBase: c.bgPage,
+      colorTextBase: c.textBody,
+      colorBorder: c.borderStrong,
+      colorBgContainer: c.bgSurface,
+      colorBgElevated: c.bgElevated,
+      colorBgLayout: c.bgPage,
+      colorText: c.textBody,
+      colorTextSecondary: c.textSecondary,
+      colorTextPlaceholder: c.textTertiary,
+      colorFill: c.bgElevated,
+      colorFillSecondary: c.bgHover,
+      colorLink: c.textHint,
+      colorLinkHover: c.textBody,
+      colorLinkActive: c.textBody,
+      colorOutline: 'rgba(22,119,255,0.15)',
+      colorOutlineBg: 'transparent',
+      colorPrimaryBg: 'rgba(22,119,255,0.08)',
+      colorPrimaryBorder: 'rgba(22,119,255,0.3)',
+      colorPrimaryBgHover: 'rgba(22,119,255,0.12)',
+      colorPrimaryBorderHover: 'rgba(22,119,255,0.4)',
+      borderRadius: 6,
+      fontFamily: "'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif",
     },
-    Menu: {
-      darkItemBg: 'transparent',
-      darkSubMenuItemBg: 'transparent',
-      darkItemSelectedBg: 'rgba(255,255,255,0.08)',
-      darkItemHoverBg: 'rgba(255,255,255,0.04)',
+    components: {
+      Table: {
+        headerBg: c.bgElevated,
+        headerColor: c.textHint,
+        rowHoverBg: c.bgElevated,
+        borderColor: c.border,
+        colorBgContainer: c.bgSurface,
+      },
+      Menu: isDark
+        ? {
+            darkItemBg: 'transparent',
+            darkSubMenuItemBg: 'transparent',
+            darkItemSelectedBg: 'rgba(255,255,255,0.08)',
+            darkItemHoverBg: 'rgba(255,255,255,0.04)',
+          }
+        : {
+            itemBg: 'transparent',
+            subMenuItemBg: 'transparent',
+            itemSelectedBg: 'rgba(22,119,255,0.08)',
+            itemHoverBg: 'rgba(0,0,0,0.04)',
+          },
+      Modal: {
+        contentBg: c.bgSurface,
+        headerBg: c.bgSurface,
+        titleColor: c.textBody,
+      },
+      Card: {
+        colorBgContainer: c.bgSurface,
+        colorBorderSecondary: c.border,
+      },
+      Pagination: {
+        itemActiveBg: c.bgElevated,
+      },
+      Select: {
+        selectorBg: c.bgInput,
+        optionSelectedBg: isDark ? '#2a2a2a' : '#e6f4ff',
+        optionActiveBg: isDark ? '#2a2a2a' : '#f0f7ff',
+      },
+      Input: {
+        colorBgContainer: c.bgInput,
+        activeBorderColor: c.borderInput,
+        activeShadow: isDark ? '0 0 0 2px rgba(255,255,255,0.08)' : '0 0 0 2px rgba(22,119,255,0.12)',
+        colorBorder: c.borderStrong,
+        hoverBorderColor: c.borderInput,
+      },
+      InputNumber: {
+        colorBgContainer: c.bgInput,
+      },
+      Button: {
+        defaultBg: c.bgElevated,
+        defaultColor: c.textBody,
+        defaultBorderColor: c.borderStrong,
+        defaultHoverBorderColor: c.textTertiary,
+        defaultHoverColor: c.textStrong,
+        primaryColor: '#ffffff',
+        colorPrimaryHover: '#4096ff',
+      },
+      Tabs: {
+        itemColor: c.textSecondary,
+        itemHoverColor: c.textBody,
+        itemSelectedColor: c.textStrong,
+        inkBarColor: c.textStrong,
+        colorBorderSecondary: c.border,
+      },
+      Descriptions: {
+        colorTextSecondary: c.textSecondary,
+        titleColor: c.textBody,
+      },
+      Timeline: {
+        tailColor: c.borderStrong,
+      },
+      Divider: {
+        colorSplit: c.border,
+        colorTextHeading: c.textSecondary,
+      },
+      Alert: {
+        colorInfoBg: 'rgba(22,119,255,0.08)',
+        colorInfoBorder: 'rgba(22,119,255,0.25)',
+        colorWarningBg: 'rgba(250,140,22,0.08)',
+        colorWarningBorder: 'rgba(250,140,22,0.25)',
+        colorErrorBg: 'rgba(255,77,79,0.08)',
+        colorErrorBorder: 'rgba(255,77,79,0.25)',
+        colorSuccessBg: 'rgba(82,196,26,0.08)',
+        colorSuccessBorder: 'rgba(82,196,26,0.25)',
+      },
+      Popover: {
+        colorBgElevated: c.bgElevated,
+      },
+      Dropdown: {
+        colorBgElevated: c.bgElevated,
+      },
+      Statistic: {
+        titleFontSize: 12,
+        contentFontSize: 24,
+      },
+      Empty: {
+        colorTextDisabled: c.textTertiary,
+      },
+      Form: {
+        labelColor: c.textHint,
+        labelFontSize: 13,
+      },
+      Tag: {
+        defaultBg: c.bgElevated,
+        defaultColor: c.textHint,
+      },
+      Message: {
+        contentBg: c.bgElevated,
+      },
+      Tooltip: {
+        colorBgSpotlight: isDark ? '#2a2a2a' : '#434343',
+      },
+      Switch: {
+        colorPrimary: c.primary,
+        colorPrimaryHover: '#4096ff',
+        colorBgContainer: isDark ? '#444444' : '#d9d9d9',
+        colorText: c.textStrong,
+        trackHeight: 22,
+        trackMinWidth: 44,
+      },
+      Checkbox: {
+        colorBgContainer: 'transparent',
+        colorBorder: c.borderInput,
+        colorPrimary: c.primary,
+        colorPrimaryHover: '#4096ff',
+        colorCheckPrimary: c.textStrong,
+      },
+      Spin: {
+        colorPrimary: c.textTertiary,
+      },
     },
-    Modal: {
-      contentBg: colors.bgSurface,
-      headerBg: colors.bgSurface,
-      titleColor: colors.textBody,
-    },
-    Card: {
-      colorBgContainer: colors.bgSurface,
-      colorBorderSecondary: colors.border,
-    },
-    Pagination: {
-      itemActiveBg: colors.bgElevated,
-    },
-    Select: {
-      selectorBg: colors.bgInput,
-      optionSelectedBg: '#2a2a2a',
-      optionActiveBg: '#2a2a2a',
-    },
-    Input: {
-      colorBgContainer: colors.bgInput,
-      activeBorderColor: '#555555',
-      activeShadow: '0 0 0 2px rgba(255,255,255,0.06)',
-    },
-    InputNumber: {
-      colorBgContainer: colors.bgInput,
-    },
-    Button: {
-      defaultBg: colors.bgElevated,
-      defaultColor: colors.textBody,
-      defaultBorderColor: colors.borderStrong,
-      defaultHoverBorderColor: colors.textTertiary,
-      defaultHoverColor: colors.textStrong,
-      primaryColor: '#000000',
-      colorPrimaryHover: '#e0e0e0',
-    },
-    Tabs: {
-      itemColor: colors.textSecondary,
-      itemHoverColor: colors.textBody,
-      itemSelectedColor: colors.textStrong,
-      inkBarColor: colors.textStrong,
-      colorBorderSecondary: colors.border,
-    },
-    Descriptions: {
-      colorTextSecondary: colors.textSecondary,
-      titleColor: colors.textBody,
-    },
-    Timeline: {
-      tailColor: colors.borderStrong,
-    },
-    Divider: {
-      colorSplit: colors.border,
-      colorTextHeading: colors.textSecondary,
-    },
-    Alert: {
-      colorInfoBg: colors.bgElevated,
-      colorInfoBorder: colors.borderStrong,
-    },
-    Popover: {
-      colorBgElevated: colors.bgElevated,
-    },
-    Dropdown: {
-      colorBgElevated: colors.bgElevated,
-    },
-    Statistic: {
-      titleFontSize: 12,
-      contentFontSize: 24,
-    },
-    Empty: {
-      colorTextDisabled: colors.textTertiary,
-    },
-    Form: {
-      labelColor: colors.textHint,
-      labelFontSize: 13,
-    },
-    Tag: {
-      defaultBg: colors.bgElevated,
-      defaultColor: colors.textHint,
-    },
-    Message: {
-      contentBg: colors.bgElevated,
-    },
-    Tooltip: {
-      colorBgSpotlight: '#2a2a2a',
-    },
-    Spin: {
-      colorPrimary: colors.textTertiary,
-    },
-  },
+  }
 }
+
+// Keep backward compat for any non-dynamic import
+export const antdTheme = getAntdTheme('dark')

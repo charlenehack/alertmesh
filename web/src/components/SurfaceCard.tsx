@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Card } from 'antd'
-import { colors } from '../theme/tokens'
+import { useTheme } from '../hooks/useTheme'
 
 interface SurfaceCardProps {
   children?: ReactNode
@@ -12,19 +12,18 @@ interface SurfaceCardProps {
   className?: string
 }
 
-// Antd Card with the standard dark surface + border + radius the project
-// uses everywhere. Replaces the 15+ inline
-// `style={{ background: '#111111', border: '1px solid #1e1e1e', borderRadius: 8 }}`
-// chunks across pages.
+// Antd Card with the standard surface + border + radius.
+// Automatically adapts to dark / light theme via useTheme().
 export function SurfaceCard({ children, title, extra, flush, style, className }: SurfaceCardProps) {
+  const { c } = useTheme()
   return (
     <Card
       title={title}
       extra={extra}
       className={className}
       style={{
-        background: colors.bgSurface,
-        border: `1px solid ${colors.borderSubtle}`,
+        background: c.bgSurface,
+        border: `1px solid ${c.borderSubtle}`,
         borderRadius: 8,
         ...style,
       }}

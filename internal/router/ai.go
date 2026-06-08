@@ -30,8 +30,8 @@ func (h *aiHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.GET("/incidents/{id}/ai").
 		To(h.getReport).
 		Doc("Get AI analysis report").
-		Metadata(label.MetaIdentity, label.AIRead).
-		Metadata(label.MetaModule, label.AIModuleName).
+		Metadata(label.MetaIdentity, label.IncidentAccess).
+		Metadata(label.MetaModule, label.IncidentModuleName).
 		Metadata(label.MetaKind, "AI").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
@@ -39,8 +39,8 @@ func (h *aiHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.POST("/incidents/{id}/ai/trigger").
 		To(h.trigger).
 		Doc("Trigger AI analysis").
-		Metadata(label.MetaIdentity, label.AITrigger).
-		Metadata(label.MetaModule, label.AIModuleName).
+		Metadata(label.MetaIdentity, label.IncidentAccess).
+		Metadata(label.MetaModule, label.IncidentModuleName).
 		Metadata(label.MetaKind, "AI").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
@@ -48,8 +48,8 @@ func (h *aiHandler) registerRoutes(ws *restful.WebService) {
 	ws.Route(ws.POST("/incidents/{id}/ai/chat").
 		To(h.chat).
 		Doc("Follow-up AI conversation").
-		Metadata(label.MetaIdentity, label.AIChat).
-		Metadata(label.MetaModule, label.AIModuleName).
+		Metadata(label.MetaIdentity, label.IncidentAccess).
+		Metadata(label.MetaModule, label.IncidentModuleName).
 		Metadata(label.MetaKind, "AI").
 		Metadata(label.MetaAuth, label.Enable).
 		Metadata(label.MetaACL, label.Enable))
@@ -110,9 +110,7 @@ func (h *aiHandler) trigger(req *restful.Request, resp *restful.Response) {
 	incidentID := req.PathParameter("id")
 
 	// Whitelist gate: only allow manual trigger when the originating data
-	// source has ai_enabled=true and a kind on the LLM whitelist.  Without
-	// this, the operator could hit the endpoint on a Prometheus / k8s incident
-	// from the UI, defeating the kind gate used at incident create.
+	// source has ai_enabled=true.
 	var inc model.Incident
 	if err := h.db.WithContext(req.Request.Context()).
 		Select("id", "ai_status", "data_source_id").
@@ -130,8 +128,10 @@ func (h *aiHandler) trigger(req *restful.Request, resp *restful.Response) {
 	if inc.DataSourceID != nil {
 		dsID = *inc.DataSourceID
 	}
-	if inc.AIStatus == model.AIStatusDisabled || !ai_pkg.ShouldRun(req.Request.Context(), h.db, dsID) {
-		httputil.BadRequest(resp, "该告警源未启用 AI 分析（仅 Kafka / OpenSearch / Elasticsearch 数据源开启 ai_enabled 后生效）")
+	// dsID 为空说明该 incident 没有关联数据源（历史数据或外部源），允许手动触发
+	// 如果有关联数据源，则该数据源必须开启 ai_enabled
+	if dsID != "" && !ai_pkg.ShouldRun(req.Request.Context(), h.db, dsID) {
+		httputil.BadRequest(resp, "该告警源未启用 AI 分析（请前往数据源配置开启 ai_enabled）")
 		return
 	}
 

@@ -16,17 +16,40 @@ import (
 // compatible with plain-text clients during migration.
 const ENCPrefix = "ENC:"
 
-// HasENCPrefix reports whether v is a wire-encrypted secret.
+// HYBPrefix marks request payload values that the browser encrypted using
+// the chunked RSA scheme (for values exceeding the RSA plaintext limit of
+// 245 bytes).  Wire format:
+//
+//	HYB:<rsa_chunk1_b64>.<rsa_chunk2_b64>.<rsa_chunk3_b64>
+//
+// Each chunk is a separate RSA-PKCS1v15 ciphertext. The Go backend
+// splits by ".", RSA-decrypts each chunk, and concatenates the results.
+const HYBPrefix = "HYB:"
+
+// HasENCPrefix reports whether v is a wire-encrypted secret (RSA-only).
 func HasENCPrefix(v string) bool {
 	return strings.HasPrefix(v, ENCPrefix)
 }
 
+// HasHYBPrefix reports whether v is a hybrid-encrypted secret (AES-GCM + RSA).
+func HasHYBPrefix(v string) bool {
+	return strings.HasPrefix(v, HYBPrefix)
+}
+
 // DecodeClientCipher returns the plaintext if v is prefixed with ENCPrefix
-// and successfully RSA-decrypts; otherwise v is returned unchanged.
+// or HYBPrefix and successfully decrypts; otherwise v is returned unchanged.
 //
 // This is the canonical entry point for "decrypt-this-field-if-the-client-
 // encrypted-it" across all HTTP handlers.
 func DecodeClientCipher(v string) string {
+	if HasHYBPrefix(v) {
+		plain, err := decodeHybrid(v)
+		if err != nil {
+			log.Warn().Err(err).Msg("auth: hybrid decrypt failed, treating value as plaintext")
+			return v
+		}
+		return plain
+	}
 	if !HasENCPrefix(v) {
 		return v
 	}
@@ -38,6 +61,44 @@ func DecodeClientCipher(v string) string {
 	}
 	return plain
 }
+
+// decodeHybrid reverses the chunked RSA encryption performed by the
+// browser's crypto.ts::chunkedRsaEncrypt().
+//
+// Wire format: "HYB:<rsa_chunk1_b64>.<rsa_chunk2_b64>.…"
+func decodeHybrid(v string) (string, error) {
+	payload := strings.TrimPrefix(v, HYBPrefix)
+	if payload == "" {
+		return "", errMalformedHybrid
+	}
+
+	chunks := strings.Split(payload, ".")
+	if len(chunks) == 0 {
+		return "", errMalformedHybrid
+	}
+
+	var plain strings.Builder
+	for i, chunk := range chunks {
+		plainChunk, err := DecryptCipher(chunk)
+		if err != nil {
+			return "", err
+		}
+		plain.WriteString(plainChunk)
+		// Sanity guard: a single secret should never exceed 64 KiB.
+		if plain.Len() > 64*1024 {
+			return "", errMalformedHybrid
+		}
+		_ = i
+	}
+
+	return plain.String(), nil
+}
+
+var errMalformedHybrid = &malformedHybridError{}
+
+type malformedHybridError struct{}
+
+func (e *malformedHybridError) Error() string { return "auth: malformed hybrid ciphertext" }
 
 // DecodeJSONClientCiphers walks an arbitrary JSON document and replaces every
 // string value carrying ENCPrefix with its RSA-decrypted plaintext.

@@ -1,0 +1,118 @@
+/**
+ * Shared hook for K8s pages – provides the selected cluster ID
+ * (persisted in sessionStorage so page refreshes keep the selection).
+ */
+import { useState, useEffect, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { http } from '../../api/request'
+
+export interface ClusterRow {
+  id: string
+  name: string
+  description: string
+  endpoint: string
+  is_enabled: boolean
+  is_default: boolean
+  last_test_ok: boolean | null
+}
+
+export function useClusters() {
+  return useQuery<ClusterRow[]>({
+    queryKey: ['k8s-clusters'],
+    queryFn: () => http.get<ClusterRow[]>('/k8s/clusters'),
+    staleTime: 30_000,
+  })
+}
+
+/** 获取指定集群的命名空间列表 */
+export function useNamespaces(dsId: string) {
+  return useQuery<string[]>({
+    queryKey: ['k8s-namespaces', dsId],
+    queryFn: async () => {
+      const res = await http.get<any>('/k8s/namespaces', { params: { ds: dsId } })
+      const items: any[] = res?.items ?? []
+      return items.map((ns: any) => ns.metadata?.name ?? '').filter(Boolean).sort()
+    },
+    enabled: !!dsId,
+    staleTime: 60_000,
+  })
+}
+
+/**
+ * 自动刷新 hook
+ * @param onRefresh 刷新回调
+ * @param defaultInterval 默认间隔秒数，0 = 默认关闭
+ */
+export function useAutoRefresh(onRefresh: () => void, defaultInterval = 0) {
+  const [enabled, setEnabled] = useState(defaultInterval > 0)
+  const [interval, setInterval_] = useState(defaultInterval || 30)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    if (!enabled) return
+    timerRef.current = setInterval(onRefresh, interval * 1000)
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [enabled, interval, onRefresh])
+
+  return { enabled, setEnabled, interval, setInterval: setInterval_ }
+}
+
+const SESSION_KEY = 'alertmesh_k8s_cluster'
+
+export function useSelectedCluster(clusters: ClusterRow[] | undefined) {
+  const [dsId, setDsId] = useState<string>(() => sessionStorage.getItem(SESSION_KEY) ?? '')
+
+  useEffect(() => {
+    if (!clusters || clusters.length === 0) return
+    // Auto-select: prefer persisted → default → first enabled → first
+    const valid = clusters.find(c => c.id === dsId)
+    if (valid) return
+    const def = clusters.find(c => c.is_default) ?? clusters.find(c => c.is_enabled) ?? clusters[0]
+    if (def) {
+      setDsId(def.id)
+      sessionStorage.setItem(SESSION_KEY, def.id)
+    }
+  }, [clusters, dsId])
+
+  const select = (id: string) => {
+    setDsId(id)
+    sessionStorage.setItem(SESSION_KEY, id)
+  }
+
+  return { dsId, select }
+}
+
+/** Sort K8s resources by creationTimestamp (newest first) */
+export function byCreation<T extends { metadata?: { creationTimestamp?: unknown } }>(a: T, b: T): number {
+  const ta = String(a.metadata?.creationTimestamp ?? '')
+  const tb = String(b.metadata?.creationTimestamp ?? '')
+  return tb.localeCompare(ta) // newest first
+}
+
+/** Pagination config that doesn't reset on re-renders */
+export const k8sPagination = {
+  defaultPageSize: 20,
+  showSizeChanger: true,
+  showTotal: (t: number) => `共 ${t} 个`,
+} as const
+
+/** Format creationTimestamp + running duration */
+export function fmtCreation(ts: unknown): { date: string; age: string } {
+  if (!ts) return { date: '—', age: '—' }
+  const d = new Date(String(ts))
+  const date = `${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  const diffMs = Date.now() - d.getTime()
+  if (diffMs < 0) return { date, age: '刚刚' }
+  const seconds = Math.floor(diffMs / 1000)
+  if (seconds < 60) return { date, age: `${seconds}s` }
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return { date, age: `${minutes}m` }
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return { date, age: `${hours}h${minutes % 60}m` }
+  const days = Math.floor(hours / 24)
+  if (days < 30) return { date, age: `${days}d${hours % 24}h` }
+  const months = Math.floor(days / 30)
+  if (months < 12) return { date, age: `${months}mo` }
+  return { date, age: `${Math.floor(months / 12)}y` }
+}

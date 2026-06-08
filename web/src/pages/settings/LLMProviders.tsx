@@ -15,6 +15,7 @@ import {
 import { encryptSecret } from '../../api/crypto'
 import { PageHeader } from '../../components/PageHeader'
 import { SurfaceCard } from '../../components/SurfaceCard'
+import { useTheme } from '../../hooks/useTheme'
 import type { LLMProvider } from '../../types'
 
 const { Text } = Typography
@@ -47,6 +48,7 @@ const PROVIDER_OPTIONS = [
 export default function LLMProviders() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<LLMProvider | null>(null)
   const [form] = Form.useForm()
@@ -289,9 +291,9 @@ export default function LLMProviders() {
         size={560}
         onClose={() => { setOpen(false); setEditing(null) }}
         styles={{
-          header: { background: '#111111', borderBottom: '1px solid #1e1e1e', color: '#e8e8e8' },
-          body: { background: '#111111', padding: '20px 24px' },
-          footer: { background: '#111111', borderTop: '1px solid #1e1e1e' },
+          header: { background: c.bgSurface, borderBottom: `1px solid ${c.border}`, color: c.textBody },
+          body: { background: c.bgSurface, padding: '20px 24px' },
+          footer: { background: c.bgSurface, borderTop: `1px solid ${c.border}` },
         }}
         footer={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -350,7 +352,7 @@ export default function LLMProviders() {
             name="name"
             label="名称"
             rules={[{ required: true, message: '名称必填' }]}
-            extra={<span style={{ color: '#666', fontSize: 11 }}>用于在列表里识别本条配置，例如 deepseek-prod / local-ollama</span>}
+            extra={<span style={{ color: c.textTertiary, fontSize: 11 }}>用于在列表里识别本条配置，例如 deepseek-prod / local-ollama</span>}
           >
             <Input placeholder="deepseek-prod" />
           </Form.Item>
@@ -360,7 +362,7 @@ export default function LLMProviders() {
             label="类型"
             rules={[{ required: true, message: '类型必填' }]}
             initialValue="openai"
-            extra={<span style={{ color: '#666', fontSize: 11 }}>OpenAI 兼容服务（DeepSeek / vLLM / Ollama via /v1）请保留 openai，并在下方填写 Base URL</span>}
+            extra={<span style={{ color: c.textTertiary, fontSize: 11 }}>OpenAI 兼容服务（DeepSeek / vLLM / Ollama via /v1）请保留 openai，并在下方填写 Base URL</span>}
           >
             <Select>
               {PROVIDER_OPTIONS.map((p) => (
@@ -373,7 +375,7 @@ export default function LLMProviders() {
             name="base_url"
             label="Base URL"
             extra={
-              <span style={{ color: '#666', fontSize: 11 }}>
+              <span style={{ color: c.textTertiary, fontSize: 11 }}>
                 官方 OpenAI 留空；DeepSeek 填 <Text code style={{ fontSize: 11 }}>https://api.deepseek.com/v1</Text>；
                 Ollama 填 <Text code style={{ fontSize: 11 }}>http://localhost:11434/v1</Text>
               </span>
@@ -386,7 +388,7 @@ export default function LLMProviders() {
             name="model"
             label="模型名称"
             rules={[{ required: true, message: '模型必填' }]}
-            extra={<span style={{ color: '#666', fontSize: 11 }}>例如 gpt-4o-mini / deepseek-chat / qwen2.5:7b-instruct</span>}
+            extra={<span style={{ color: c.textTertiary, fontSize: 11 }}>例如 gpt-4o-mini / deepseek-chat / qwen2.5:7b-instruct</span>}
           >
             <Input placeholder="deepseek-chat" />
           </Form.Item>
@@ -396,7 +398,7 @@ export default function LLMProviders() {
             label="API Key"
             rules={editing ? [] : [{ required: true, message: 'API Key 必填' }]}
             extra={
-              <span style={{ color: '#666', fontSize: 11 }}>
+              <span style={{ color: c.textTertiary, fontSize: 11 }}>
                 {editing
                   ? '保留 ****** 表示不修改；输入新值将通过 RSA 加密传输并重新落库。'
                   : '提交前由浏览器使用系统公钥 RSA 加密（ENC: 前缀），落库时再 AES-256-GCM 加密；列表接口仅返回 ******。'}
@@ -410,7 +412,7 @@ export default function LLMProviders() {
             name="temperature"
             label="温度 (temperature)"
             initialValue={0.1}
-            extra={<span style={{ color: '#666', fontSize: 11 }}>0 ~ 1，根因分析建议保持较低值 (0 ~ 0.2)</span>}
+            extra={<span style={{ color: c.textTertiary, fontSize: 11 }}>0 ~ 1，根因分析建议保持较低值 (0 ~ 0.2)</span>}
           >
             <InputNumber style={{ width: '100%' }} min={0} max={2} step={0.1} />
           </Form.Item>
@@ -421,7 +423,7 @@ export default function LLMProviders() {
               borderTop: '1px solid #1e1e1e',
               margin: '8px 0 16px',
               paddingTop: 12,
-              color: '#9aa0a6',
+              color: c.textSecondary,
               fontSize: 11,
               letterSpacing: 0.4,
             }}
@@ -434,7 +436,7 @@ export default function LLMProviders() {
             label="输出语言"
             initialValue="zh"
             extra={
-              <span style={{ color: '#666', fontSize: 11 }}>
+              <span style={{ color: c.textTertiary, fontSize: 11 }}>
                 根因报告与追问回复使用的语言。<Text code style={{ fontSize: 11 }}>auto</Text> 会跟随告警 / 提问语言；
                 ReAct 协议关键字（Thought/Action/...）始终保持英文，不受此项影响。
               </span>
@@ -452,7 +454,7 @@ export default function LLMProviders() {
             label="追问携带的报告最大字数"
             initialValue={8000}
             extra={
-              <span style={{ color: '#666', fontSize: 11 }}>
+              <span style={{ color: c.textTertiary, fontSize: 11 }}>
                 追问对话时把上一轮根因报告的前 N 个字符作为上下文喂回模型；过大会撑爆小模型 context window。
                 <Text code style={{ fontSize: 11 }}>0</Text> 使用系统默认（8000）。
               </span>
@@ -466,7 +468,7 @@ export default function LLMProviders() {
             label="追问保留的历史轮数"
             initialValue={10}
             extra={
-              <span style={{ color: '#666', fontSize: 11 }}>
+              <span style={{ color: c.textTertiary, fontSize: 11 }}>
                 每个 incident 的追问对话最多保留最近 N 个 user / assistant 回合作为上下文。
                 <Text code style={{ fontSize: 11 }}>0</Text> 使用系统默认（10 轮）。
               </span>
@@ -480,7 +482,7 @@ export default function LLMProviders() {
               borderTop: '1px solid #1e1e1e',
               margin: '8px 0 16px',
               paddingTop: 12,
-              color: '#9aa0a6',
+              color: c.textSecondary,
               fontSize: 11,
               letterSpacing: 0.4,
             }}
@@ -489,7 +491,7 @@ export default function LLMProviders() {
           </div>
 
           <Form.Item name="is_default" label="设为默认" valuePropName="checked" extra={
-            <span style={{ color: '#666', fontSize: 11 }}>
+            <span style={{ color: c.textTertiary, fontSize: 11 }}>
               开启后将清除其他配置的默认标记；AI 分析始终使用 is_default + is_enabled 的那一条。
             </span>
           }>

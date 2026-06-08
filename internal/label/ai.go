@@ -3,11 +3,7 @@ package label
 const (
 	AIModuleName = "AI 分析"
 
-	AIRead    = "aiRead"
-	AITrigger = "aiTrigger"
-	AIChat    = "aiChat"
-
-	// LLM providers (大模型供应商配置 / admin-only)
+	// AI 分析功能随告警事件权限（IncidentAccess），此处仅保留 LLM 供应商配置（管理员专属）
 	LLMProviderList    = "llmProviderList"
 	LLMProviderCreate  = "llmProviderCreate"
 	LLMProviderUpdate  = "llmProviderUpdate"

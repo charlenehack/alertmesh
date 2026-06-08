@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import { getAuthConfig, setAuthConfig, getConfigs, updateConfig } from '../../api/system'
 import { encryptJSONSecrets } from '../../api/crypto'
+import { useTheme } from '../../hooks/useTheme'
 import type { AuthConfig, SystemConfig } from '../../types'
 
 // Top-level JSON fields RSA-encrypted before submit so they never traverse
@@ -23,6 +24,7 @@ const { Option } = Select
 export default function SystemSettings() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [form] = Form.useForm()
 
   const { data, isLoading } = useQuery({
@@ -52,24 +54,24 @@ export default function SystemSettings() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-        <SettingOutlined style={{ fontSize: 18, color: '#ffffff' }} />
-        <Title level={5} style={{ margin: 0, color: '#ffffff' }}>系统配置</Title>
+        <SettingOutlined style={{ fontSize: 18, color: c.primary }} />
+        <Title level={5} style={{ margin: 0, color: c.textBody }}>系统配置</Title>
       </div>
 
       <Card
         title={
-          <span style={{ color: '#e8e8e8', fontSize: 14 }}>
+          <span style={{ color: c.textBody, fontSize: 14 }}>
             <LockOutlined style={{ marginRight: 8 }} />认证方式配置
           </span>
         }
-        style={{ background: '#111111', border: '1px solid #1e1e1e', borderRadius: 8, maxWidth: 580 }}
+        style={{ background: c.bgSurface, border: `1px solid ${c.borderSubtle}`, borderRadius: 8, maxWidth: 580 }}
       >
         <Alert
           type="info"
           message={<Text style={{ fontSize: 13 }}>当前认证模式：<Text strong style={{ color: '#1677ff' }}>{current.mode?.toUpperCase()}</Text></Text>}
           description="切换认证方式后需重启服务生效。LDAP / OIDC 配置将加密存储。"
           showIcon
-          style={{ marginBottom: 24, background: '#0d1a33', border: '1px solid #1a3a6e' }}
+          style={{ marginBottom: 24, background: 'rgba(22,119,255,0.08)', border: '1px solid rgba(22,119,255,0.25)' }}
         />
 
         <Form form={form} layout="vertical" onFinish={saveMut.mutate} initialValues={{ mode: current.mode }}>
@@ -87,11 +89,11 @@ export default function SystemSettings() {
               if (mode === 'ldap') {
                 return (
                   <>
-                    <Divider style={{ borderColor: '#1e1e1e', marginBottom: 16 }}>LDAP 配置（JSON）</Divider>
+                    <Divider style={{ borderColor: c.border, marginBottom: 16 }}>LDAP 配置（JSON）</Divider>
                     <Alert
                       type="warning"
                       message="LDAP 认证功能暂未完整实现，配置将被加密存储但不会生效。"
-                      showIcon style={{ marginBottom: 16, background: '#1a1200', border: '1px solid #3d2f00' }}
+                      showIcon style={{ marginBottom: 16, background: 'rgba(250,140,22,0.08)', border: '1px solid rgba(250,140,22,0.25)' }}
                     />
                     <Form.Item name="config" rules={[{ required: true, message: '请填写 LDAP 配置' }]}>
                       <Input.TextArea
@@ -111,11 +113,11 @@ export default function SystemSettings() {
               if (mode === 'oidc') {
                 return (
                   <>
-                    <Divider style={{ borderColor: '#1e1e1e', marginBottom: 16 }}>OIDC 配置（JSON）</Divider>
+                    <Divider style={{ borderColor: c.border, marginBottom: 16 }}>OIDC 配置（JSON）</Divider>
                     <Alert
                       type="warning"
                       message="OIDC 认证功能暂未完整实现，配置将被加密存储但不会生效。"
-                      showIcon style={{ marginBottom: 16, background: '#1a1200', border: '1px solid #3d2f00' }}
+                      showIcon style={{ marginBottom: 16, background: 'rgba(250,140,22,0.08)', border: '1px solid rgba(250,140,22,0.25)' }}
                     />
                     <Form.Item name="config" rules={[{ required: true, message: '请填写 OIDC 配置' }]}>
                       <Input.TextArea
@@ -262,6 +264,7 @@ function formToScheduleJSON(v: ScheduleFormValues): string {
 function LifecycleSettingsCard() {
   const qc = useQueryClient()
   const { message } = App.useApp()
+  const { c } = useTheme()
   const [form] = Form.useForm()
 
   const { data, isLoading } = useQuery({
@@ -321,11 +324,11 @@ function LifecycleSettingsCard() {
   return (
     <Card
       title={
-        <span style={{ color: '#e8e8e8', fontSize: 14 }}>
+        <span style={{ color: c.textBody, fontSize: 14 }}>
           <NotificationOutlined style={{ marginRight: 8 }} />告警生命周期 (v3)
         </span>
       }
-      style={{ background: '#111111', border: '1px solid #1e1e1e', borderRadius: 8, maxWidth: 880, marginTop: 24 }}
+      style={{ background: c.bgSurface, border: `1px solid ${c.borderSubtle}`, borderRadius: 8, maxWidth: 880, marginTop: 24 }}
     >
       <Alert
         type="info"
@@ -338,7 +341,7 @@ function LifecycleSettingsCard() {
           </span>
         }
         showIcon
-        style={{ marginBottom: 16, background: '#0d1a33', border: '1px solid #1a3a6e' }}
+        style={{ marginBottom: 16, background: 'rgba(22,119,255,0.08)', border: '1px solid rgba(22,119,255,0.25)' }}
       />
       <Alert
         type="warning"
@@ -352,7 +355,7 @@ function LifecycleSettingsCard() {
           </span>
         }
         showIcon
-        style={{ marginBottom: 24, background: '#1a1200', border: '1px solid #3d2f00' }}
+        style={{ marginBottom: 24, background: 'rgba(250,173,20,0.08)', border: '1px solid rgba(250,173,20,0.25)' }}
       />
 
       <Form
@@ -363,8 +366,8 @@ function LifecycleSettingsCard() {
         // Re-seed when the query result lands.
         key={JSON.stringify(initialValues)}
       >
-        <Divider style={{ borderColor: '#1e1e1e', margin: '4px 0 16px' }}>
-          <Text style={{ fontSize: 12, color: '#888' }}>重发节奏（notification.repeat_schedule）</Text>
+        <Divider style={{ borderColor: c.border, margin: '4px 0 16px' }}>
+          <Text style={{ fontSize: 12, color: c.textHint }}>重发节奏（notification.repeat_schedule）</Text>
         </Divider>
 
         <Form.Item
@@ -382,7 +385,7 @@ function LifecycleSettingsCard() {
                 <Space wrap>
                   {fields.map((field, idx) => (
                     <Space key={field.key} size={4}>
-                      <span style={{ color: '#666', fontSize: 12 }}>#{idx + 1}</span>
+                      <span style={{ color: c.textHint, fontSize: 12 }}>#{idx + 1}</span>
                       <Form.Item
                         {...field}
                         noStyle
@@ -441,8 +444,8 @@ function LifecycleSettingsCard() {
           </Form.Item>
         </Space>
 
-        <Divider style={{ borderColor: '#1e1e1e', margin: '8px 0 16px' }}>
-          <Text style={{ fontSize: 12, color: '#888' }}>升级链 — severity_chain</Text>
+        <Divider style={{ borderColor: c.border, margin: '8px 0 16px' }}>
+          <Text style={{ fontSize: 12, color: c.textHint }}>升级链 — severity_chain</Text>
         </Divider>
 
         <Alert
@@ -453,7 +456,7 @@ function LifecycleSettingsCard() {
             </Text>
           }
           showIcon
-          style={{ marginBottom: 12, background: '#0d1a33', border: '1px solid #1a3a6e' }}
+          style={{ marginBottom: 12, background: 'rgba(22,119,255,0.08)', border: '1px solid rgba(22,119,255,0.25)' }}
         />
 
         <Form.List name={['schedule', 'severity_chain']}>
@@ -461,7 +464,7 @@ function LifecycleSettingsCard() {
             <>
               {fields.map((field, idx) => (
                 <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
-                  <span style={{ color: '#666', fontSize: 12, width: 24 }}>#{idx + 1}</span>
+                  <span style={{ color: c.textHint, fontSize: 12, width: 24 }}>#{idx + 1}</span>
                   <Form.Item
                     {...field}
                     name={[field.name, 'severity']}
@@ -524,8 +527,8 @@ function LifecycleSettingsCard() {
           )}
         </Form.List>
 
-        <Divider style={{ borderColor: '#1e1e1e', margin: '24px 0 16px' }}>
-          <Text style={{ fontSize: 12, color: '#888' }}>生命周期窗口</Text>
+        <Divider style={{ borderColor: c.border, margin: '24px 0 16px' }}>
+          <Text style={{ fontSize: 12, color: c.textHint }}>生命周期窗口</Text>
         </Divider>
 
         <Form.Item
