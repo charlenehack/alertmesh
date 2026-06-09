@@ -49,7 +49,7 @@ export default function Login() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#0a0a0a',
+        background: '#f5f5f5',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -60,20 +60,20 @@ export default function Login() {
         <div style={{ marginBottom: 48 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <rect width="28" height="28" rx="6" fill="#ffffff" />
+              <rect width="28" height="28" rx="6" fill="#1677ff" />
               <path
                 d="M7 14h4l3-7 4 14 3-9 2 2h2"
-                stroke="#000000"
+                stroke="#ffffff"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </svg>
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
-              <span style={{ color: '#ffffff', fontSize: 18, fontWeight: 700, letterSpacing: '0.5px' }}>
+              <span style={{ color: '#1a1a1a', fontSize: 18, fontWeight: 700, letterSpacing: '0.5px' }}>
                 运维管理平台
               </span>
-              <span style={{ color: '#555555', fontSize: 11, letterSpacing: '0.5px' }}>Cloud-Hub DevOps</span>
+              <span style={{ color: '#888888', fontSize: 11, letterSpacing: '0.5px' }}>Cloud-Hub DevOps</span>
             </div>
           </div>
         </div>
@@ -82,17 +82,17 @@ export default function Login() {
         <Form onFinish={onFinish} layout="vertical" size="large">
           <Form.Item
             name="username"
-            label={<span style={{ color: '#666666', fontSize: 13 }}>用户名</span>}
+            label={<span style={{ color: '#333333', fontSize: 13 }}>用户名</span>}
             rules={[{ required: true, message: '' }]}
           >
             <Input
               placeholder="请输入用户名"
               autoComplete="username"
               style={{
-                background: '#111111',
-                border: '1px solid #2a2a2a',
+                background: '#ffffff',
+                border: '1px solid #d9d9d9',
                 borderRadius: 6,
-                color: '#e8e8e8',
+                color: '#1a1a1a',
                 height: 44,
               }}
             />
@@ -100,17 +100,17 @@ export default function Login() {
 
           <Form.Item
             name="password"
-            label={<span style={{ color: '#666666', fontSize: 13 }}>密码</span>}
+            label={<span style={{ color: '#333333', fontSize: 13 }}>密码</span>}
             rules={[{ required: true, message: '' }]}
           >
             <Input.Password
               placeholder="请输入密码"
               autoComplete="current-password"
               style={{
-                background: '#111111',
-                border: '1px solid #2a2a2a',
+                background: '#ffffff',
+                border: '1px solid #d9d9d9',
                 borderRadius: 6,
-                color: '#e8e8e8',
+                color: '#1a1a1a',
                 height: 44,
               }}
             />
@@ -124,8 +124,8 @@ export default function Login() {
               block
               style={{
                 height: 44,
-                background: '#ffffff',
-                color: '#000000',
+                background: '#1677ff',
+                color: '#ffffff',
                 border: 'none',
                 borderRadius: 6,
                 fontWeight: 600,
@@ -138,8 +138,8 @@ export default function Login() {
           </Form.Item>
         </Form>
 
-        <p style={{ color: '#2a2a2a', fontSize: 12, textAlign: 'center', marginTop: 32 }}>
-          默认账户 admin / admin123
+        <p style={{ color: '#999999', fontSize: 12, textAlign: 'center', marginTop: 32 }}>
+          {/* 默认账户信息已移除 */}
         </p>
       </div>
     </div>

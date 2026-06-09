@@ -96,7 +96,7 @@ curl http://localhost:8080/healthz
 git clone <repo-url> alertmesh && cd alertmesh
 
 # 编译后端二进制（单文件，无外部依赖）
-go build -trimpath -ldflags "-s -w" -o alertmesh ./cmd/alertmesh/
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o alertmesh ./cmd/alertmesh/
 
 # 构建前端静态文件
 cd web && npm install && npx vite build && cd ..
@@ -113,13 +113,17 @@ cd web && npm install && npx vite build && cd ..
 
 | 依赖 | 最低版本 | 说明 |
 |------|----------|------|
-| PostgreSQL | 15+ | 主数据库 |
+| PostgreSQL | 15+ | 主数据库（需启用 pgcrypto 扩展）|
 | Nginx | 任意 | 反向代理 + 静态文件（可选）|
 | OpenSSL | 任意 | 生成加密密钥 |
+| Ansible | 2.9+ | 仅「运维操作→Nginx 配置下发」功能需要，其他功能无需 |
 
 ```bash
 # Ubuntu / Debian
-apt-get install -y postgresql nginx openssl
+apt-get install -y postgresql postgresql-contrib nginx openssl
+# 若需要 Nginx 配置下发功能，额外安装 Ansible
+pip3 install ansible
+
 systemctl enable postgresql && systemctl start postgresql
 
 # 创建数据库和用户
@@ -128,6 +132,10 @@ CREATE USER alertmesh WITH PASSWORD '替换为强密码';
 CREATE DATABASE alertmesh OWNER alertmesh;
 \q
 SQL
+
+# 启用 pgcrypto 扩展（UUID 生成依赖，必须执行）
+# ⚠️ CentOS/RHEL 需先安装对应版本的 contrib 包，例如 postgresql15-contrib
+sudo -u postgres psql -d alertmesh -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
 
 # 创建部署目录
 mkdir -p /opt/alertmesh/web/dist
@@ -174,7 +182,58 @@ ALERTMESH_AI_WORKERS=2
 # ALERTMESH_ANSIBLE_NGINX_BIN=/usr/sbin/nginx
 ```
 
-#### 阶段四：配置 systemd 并启动
+#### 运维操作→Nginx 配置下发（可选）
+
+若需要使用「Nginx 配置下发」功能，需完成以下全部准备工作：
+
+**第一步：安装依赖（在 AlertMesh 所在服务器执行）**
+
+```bash
+# 安装 Ansible、rsync（同步功能基于 rsync 传输）
+
+# Ubuntu / Debian
+apt-get install -y ansible rsync
+
+# CentOS / RHEL
+yum install -y epel-release
+yum install -y ansible rsync
+
+# 或通过 pip 安装 Ansible
+pip3 install ansible
+yum install -y rsync   # rsync 仍需单独安装
+```
+
+**第二步：在目标 Nginx 服务器上安装 rsync**
+
+```bash
+# Ubuntu / Debian
+apt-get install -y rsync
+
+# CentOS / RHEL
+yum install -y rsync
+```
+
+**第三步：创建工作目录并上传 playbook 模板（在编译机执行）**
+
+```bash
+# 在生产服务器上创建工作目录
+ssh $SERVER "mkdir -p /opt/alertmesh/work/templates /opt/alertmesh/work/usr"
+
+# 将两个 playbook 模板上传到生产服务器
+scp work/templates/deploy_nginx.yml $SERVER:/opt/alertmesh/work/templates/deploy_nginx.yml
+scp work/templates/sync_nginx.yml   $SERVER:/opt/alertmesh/work/templates/sync_nginx.yml
+```
+
+**第四步：在生产服务器的 `.env` 中开启相关配置**
+
+```bash
+NGINX_WORK_DIR=/opt/alertmesh/work           # work 目录绝对路径
+ALERTMESH_ANSIBLE_USER=root                  # SSH 登录 Nginx 服务器的用户名
+ALERTMESH_ANSIBLE_PASSWORD=ssh密码          # SSH 密码
+ALERTMESH_ANSIBLE_NGINX_BIN=/usr/sbin/nginx  # 目标服务器上 nginx 可执行文件路径
+```
+
+> **工作原理**：`Sync`（同步）利用 `rsync` 将 Nginx 服务器上的配置（文件或目录）拉取到 `work/usr/` 目录供编辑；`Deploy`（下发）在 AlertMesh 所在服务器上调用 `ansible-playbook`，将修改后的配置推送到目标 Nginx 服务器并自动 reload。
 
 ```bash
 # 创建专用运行用户

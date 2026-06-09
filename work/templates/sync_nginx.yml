@@ -5,21 +5,40 @@
 #   hosts_list   - 源主机 IP（取第一台），逗号分隔
 #   dest_files   - 要同步的文件列表（JSON 数组），每项包含 remote_path 字段
 #   local_dir    - 发布机上存放同步结果的目录（work 目录绝对路径）
+#
+# 同步结果: local_dir/usr/local/openresty/nginx/conf/
+# 前提：发布机和目标 Nginx 服务器均需安装 rsync
+#   yum install -y rsync  /  apt-get install -y rsync
 
 - name: 从 Nginx 服务器同步配置文件到发布机
   hosts: "{{ hosts_list }}"
   gather_facts: false
   become: false
   vars:
-    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ControlMaster=no'
 
   tasks:
     - name: 确认目标主机可达
       ping:
 
-    - name: 同步配置文件到发布机
-      fetch:
-        src: "{{ item.remote_path }}"
-        dest: "{{ local_dir }}"
-        flat: false
+    - name: 在发布机上预创建目标路径
+      file:
+        path: "{{ local_dir }}/{{ item.remote_path | regex_replace('^/', '') }}"
+        state: directory
+        mode: '0755'
       loop: "{{ dest_files | from_json }}"
+      delegate_to: localhost
+
+    - name: 同步配置文件/目录到发布机（synchronize 支持目录）
+      synchronize:
+        mode: pull
+        src: "{{ item.remote_path }}/"
+        dest: "{{ local_dir }}/{{ item.remote_path | regex_replace('^/', '') }}"
+        recursive: true
+        delete: false
+        set_remote_user: true
+        rsync_opts:
+          - "--no-motd"
+          - "--checksum"
+      loop: "{{ dest_files | from_json }}"
+      delegate_to: localhost

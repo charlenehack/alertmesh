@@ -56,7 +56,7 @@ export default function AppLayout() {
   const isDark = mode === 'dark'
 
   const isAdmin = hasRole('管理员')
-  const canOps = hasPermission('opsAccess')
+  const canOps = isAdmin || hasPermission('opsAccess')
   const canK8s = isAdmin || hasPermission('k8sAccess')
   const canIncident = isAdmin || hasPermission('incidentAccess')
   const canAlertRoute = isAdmin || hasPermission('alertRouteAccess')
