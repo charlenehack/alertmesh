@@ -144,17 +144,19 @@ func WebhookSignatureFilter(db *gorm.DB) restful.FilterFunction {
 			SetAllowedAlgs([]string{"ed25519"}).
 			SetVerifyCreated(true).
 			SetNotNewerThan(skew).
-			SetNotOlderThan(skew).
-			SetNonceValidator(func(nonce string) error {
-				if nonce == "" {
-					return errors.New("nonce required")
-				}
-				key := row.ClientID + ":" + nonce
-				if !cache.SetNX(key, skew*2) {
-					return errors.New("nonce already seen (replay)")
-				}
-				return nil
-			})
+			SetNotOlderThan(skew)
+
+		// 手动提取 nonce 并做防重放校验（替代 v0.5.x 的 SetNonceValidator）
+		nonce := extractNonce(req.Request)
+		if nonce == "" {
+			rejectSig(resp, "nonce required")
+			return
+		}
+		nonceKey := row.ClientID + ":" + nonce
+		if !cache.SetNX(nonceKey, skew*2) {
+			rejectSig(resp, "nonce already seen (replay)")
+			return
+		}
 
 		verifier, err := httpsign.NewEd25519Verifier(pubKey, cfg, requiredFields)
 		if err != nil {
@@ -216,6 +218,19 @@ func metaString(meta map[string]interface{}, key string) string {
 	if v, ok := meta[key]; ok {
 		if s, ok := v.(string); ok {
 			return s
+		}
+	}
+	return ""
+}
+
+// extractNonce parses the nonce parameter from the Signature-Input header.
+// Format: alertmesh=("@method" ...);nonce="xxx";created=...
+func extractNonce(r *http.Request) string {
+	sigInput := r.Header.Get("Signature-Input")
+	for _, part := range strings.Split(sigInput, ";") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "nonce=") {
+			return strings.Trim(strings.TrimPrefix(part, "nonce="), `"`)
 		}
 	}
 	return ""
